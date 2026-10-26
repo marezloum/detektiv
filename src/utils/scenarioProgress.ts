@@ -40,10 +40,6 @@ export function applyStolenPaintingProgress(
     nextUnlocked.add('hotel')
   }
 
-  if (dialogueKey === 'hotel-0') {
-    nextUnlocked.add('airport')
-  }
-
   if (allSpecialistsInterviewed(completed) && !hubCluesAvailable.has('clue-voice-director')) {
     hubCluesAvailable.add('clue-voice-director')
   }
@@ -69,6 +65,15 @@ export function hasPendingDirectorCall(state: GameState): boolean {
 /** Утро дня 2: срочный звонок директора на городской (не SMS) */
 export function hasPendingDay2Call(state: GameState): boolean {
   return state.gameDay >= 2 && !state.completedDialogues.has('day2-call-0')
+}
+
+/** Исходящий звонок в полицию аэропорта после чехла в номере */
+export function hasPendingAirportCall(state: GameState): boolean {
+  return (
+    state.completedDialogues.has('hotel-3') &&
+    state.backpack.some((c) => c.id === 'clue-painting-cover') &&
+    !state.completedDialogues.has('airport-call-0')
+  )
 }
 
 export function getAvailableDialogues(
@@ -112,12 +117,24 @@ export function getAvailableDialogues(
     }
   }
 
-  if (locationId === 'hotel' && !state.completedDialogues.has('hotel-0')) {
-    available.push(0)
+  if (locationId === 'hotel') {
+    if (!state.completedDialogues.has('hotel-0')) {
+      available.push(0)
+    } else {
+      if (!state.completedDialogues.has('hotel-1')) available.push(1)
+      if (!state.completedDialogues.has('hotel-2')) available.push(2)
+      if (state.completedDialogues.has('hotel-2') && !state.completedDialogues.has('hotel-3')) {
+        available.push(3)
+      }
+    }
   }
 
-  if (locationId === 'airport' && !state.completedDialogues.has('airport-0')) {
-    available.push(0)
+  if (locationId === 'airport') {
+    if (!state.completedDialogues.has('airport-0')) {
+      available.push(0)
+    } else if (!state.completedDialogues.has('airport-1')) {
+      available.push(1)
+    }
   }
 
   return available
@@ -131,6 +148,10 @@ export function isLocationCleared(
 ): boolean {
   if (scenario.id === 'stolen-painting' && locationId === 'detective-room') {
     return state.completedDialogues.has('detective-room-0')
+  }
+
+  if (scenario.id === 'stolen-painting' && locationId === 'hotel') {
+    return state.completedDialogues.has('hotel-3')
   }
 
   if (getAvailableDialogues(scenario, locationId, state).length > 0) {
@@ -158,7 +179,7 @@ export function getDialogueLabel(
     if (dialogueIndex === 0) return 'Поговорить с директором'
     if (dialogueIndex === 1) return 'Опросить Марину в зале 30'
     if (dialogueIndex === 2) return 'Опросить Петра в зале 20'
-    if (dialogueIndex === 3) return 'Опросить Дмитрия в зале 38'
+    if (dialogueIndex === 3) return 'Опросить Дмитрия Андреевича в зале 38'
     if (dialogueIndex === 4) return 'Узнать о происшествии (день 2)'
   }
 
@@ -173,11 +194,15 @@ export function getDialogueLabel(
   }
 
   if (locationId === 'hotel') {
-    return 'Поговорить с администратором'
+    if (dialogueIndex === 0) return 'Поговорить с администратором'
+    if (dialogueIndex === 1) return 'Спросить про Лебедеву'
+    if (dialogueIndex === 2) return 'Спросить про Верещагину'
+    if (dialogueIndex === 3) return 'Осмотреть номер'
   }
 
   if (locationId === 'airport') {
-    return 'Спросить на стойке информации'
+    if (dialogueIndex === 0) return 'Слушать объявление'
+    if (dialogueIndex === 1) return 'К досмотру'
   }
 
   return 'Поговорить'

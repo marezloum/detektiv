@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 18" preserveAspectRatio="none">
+  <defs>
+    <filter id="rough" x="-2%" y="-120%" width="104%" height="340%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03 0.35" numOctaves="2" seed="6" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.5" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </defs>
+  <rect x="0" y="7" width="640" height="3.2" fill="#f0e7df" filter="url(#rough)" />
+</svg>

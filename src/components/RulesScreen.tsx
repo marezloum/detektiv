@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGameContext } from '../context/GameContext'
 import { ScreenTopBar } from './ScreenTopBar'
+import { SceneBackground } from './SceneBackground'
 import { AudioPlayer } from './AudioPlayer'
 
 export function RulesScreen() {
@@ -15,6 +16,8 @@ export function RulesScreen() {
 
   return (
     <div className="screen rules-screen">
+      <SceneBackground sceneId="detective-room" className="rules-bg" />
+      <div className="rules-vignette" aria-hidden />
       <ScreenTopBar onBack={goBack} backLabel="К меню" />
       <div className="panel rules-panel">
         <h2 className="rules-title">Правила игры</h2>

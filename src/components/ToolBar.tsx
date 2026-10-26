@@ -10,6 +10,8 @@ export function ToolBar() {
     openSolve,
     hasPendingOpeningSms,
     savePulse,
+    openPhone,
+    phoneOpen,
   } = useGameContext()
 
   const pulsed = (target: SavePulseTarget) =>
@@ -23,7 +25,7 @@ export function ToolBar() {
         onClick={() => openPanel('map')}
         title={
           hasPendingOpeningSms
-            ? 'Сначала примите вызов на телефоне'
+            ? 'Сначала закройте сообщение на телефоне'
             : 'Карта'
         }
       >
@@ -56,15 +58,13 @@ export function ToolBar() {
       </button>
       <button
         type="button"
-        className={`tool-btn ${activePanel === 'board' ? 'active' : ''} ${pulsed('board')}`}
-        onClick={() => openPanel('board')}
-        title="Доска улик — закрепить и связать"
+        className={`tool-btn ${phoneOpen ? 'active' : ''}`}
+        onClick={() => openPhone()}
+        title={hasPendingOpeningSms ? 'Новое сообщение' : 'Телефон'}
       >
-        {savePulse?.target === 'board' && (
-          <SaveBell key={savePulse.key} />
-        )}
-        <span className="tool-icon">📌</span>
-        <span>Доска</span>
+        <span className="tool-icon">📱</span>
+        <span>Телефон</span>
+        {hasPendingOpeningSms && <span className="tool-badge">1</span>}
       </button>
       {canSolve && (
         <button type="button" className="tool-btn tool-solve" onClick={openSolve}>

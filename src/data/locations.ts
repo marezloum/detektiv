@@ -1,5 +1,5 @@
 import type { LocationMeta } from '../types/game'
-import { geoToMap, MOSCOW_LANDMARKS } from './moscowGeo'
+import { MOSCOW_LANDMARKS } from './moscowGeo'
 
 export const LOCATIONS: Record<string, LocationMeta> = {
   'detective-room': {
@@ -60,8 +60,8 @@ export const LOCATIONS: Record<string, LocationMeta> = {
   },
   hotel: {
     id: 'hotel',
-    name: 'Гостиница «Альфа»',
-    description: 'Служебные машины с эмблемой отеля. Трансферы по городу.',
+    name: 'Гостиница «Националь»',
+    description: 'Моховая, 15/1. Самая дорогая гостиница у Кремля. Холл и номера гостей.',
     imageKey: 'hotel',
   },
   shopping: {
@@ -72,9 +72,8 @@ export const LOCATIONS: Record<string, LocationMeta> = {
   },
 }
 
-/** Базовые точки карты — координаты из реальной географии */
+/** Точки карты — ручная раскладка, не GPS */
 export const MAP_POINTS = MOSCOW_LANDMARKS.map((landmark) => {
-  const { x, y } = geoToMap(landmark.lat, landmark.lng)
   return {
     id: landmark.id,
     mapCode: landmark.mapCode,
@@ -82,8 +81,8 @@ export const MAP_POINTS = MOSCOW_LANDMARKS.map((landmark) => {
     realName: landmark.realName,
     district: landmark.district,
     icon: landmark.icon,
-    x,
-    y,
+    x: landmark.x,
+    y: landmark.y,
     unlocked: landmark.id === 'detective-room',
   }
 })

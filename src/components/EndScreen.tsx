@@ -14,8 +14,8 @@ export function EndScreen() {
         {isVictory ? (
           <>
             <p>
-              Преступник — <strong>{culprit?.name}</strong>. Он поехал на такси в аэропорт
-              и собирался бежать в Стамбул.
+              Преступница — <strong>{culprit?.name}</strong>. Она прятала «Апофеоз войны» в гипсе
+              и пыталась улететь из Шереметьева.
             </p>
             <p className="end-time">Итоговое время: {formatTime(state.elapsedSeconds)}</p>
             {state.hintCount > 0 && (
@@ -24,7 +24,8 @@ export function EndScreen() {
           </>
         ) : (
           <p>
-            Пересмотрите улики и заметки в блокноте. Настоящий преступник — охранник музея.
+            Пересмотрите улики и заметки в блокноте. Настоящая виновная — гостья отеля
+            Любовь Максимовна Верещагина.
           </p>
         )}
         <button type="button" className="btn btn-primary" onClick={resetGame}>

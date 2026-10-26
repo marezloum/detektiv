@@ -16,7 +16,6 @@ export function DialogueSpeechControls({
   audioSrc,
 }: DialogueSpeechControlsProps) {
   const [status, setStatus] = useState<SpeechStatus>('idle')
-  const [rate, setRate] = useState(0.9)
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
 
   useEffect(() => {
@@ -38,11 +37,11 @@ export function DialogueSpeechControls({
 
   if (!supported || !text.trim()) return null
 
-  const startSpeech = (nextRate = rate) => {
+  const startSpeech = () => {
     speechSynthesis.cancel()
     const utter = new SpeechSynthesisUtterance(text)
     utter.lang = 'ru-RU'
-    utter.rate = nextRate
+    utter.rate = 1
     utter.onstart = () => setStatus('playing')
     utter.onend = () => setStatus('idle')
     utter.onerror = () => setStatus('idle')
@@ -67,13 +66,6 @@ export function DialogueSpeechControls({
   const stopSpeech = () => {
     speechSynthesis.cancel()
     setStatus('idle')
-  }
-
-  const changeRate = (next: number) => {
-    setRate(next)
-    if (status === 'playing' || status === 'paused') {
-      startSpeech(next)
-    }
   }
 
   return (
@@ -105,20 +97,6 @@ export function DialogueSpeechControls({
         <span className="dialogue-speech-status">
           {status === 'playing' ? 'Идёт озвучка' : status === 'paused' ? 'Пауза' : 'Голос'}
         </span>
-        <label className="dialogue-speech-rate">
-          <span className="visually-hidden">Скорость</span>
-          <select
-            value={rate}
-            onChange={(e) => changeRate(Number(e.target.value))}
-            aria-label="Скорость озвучки"
-            title="Скорость"
-          >
-            <option value={0.75}>0.75×</option>
-            <option value={0.9}>0.9×</option>
-            <option value={1}>1×</option>
-            <option value={1.25}>1.25×</option>
-          </select>
-        </label>
       </div>
     </div>
   )

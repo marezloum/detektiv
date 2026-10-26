@@ -67,6 +67,14 @@ export interface DialogueLine {
   audioCue?: string
   /** После этой реплики разблокировать улику в кабинете (голосовое и т.п.) */
   unlockHubClueId?: string
+  /** Игрок должен показать улику из рюкзака, чтобы продолжить */
+  requireShowClueId?: string
+  showCluePrompt?: string
+  showClueWrongText?: string
+  /** Улики с hotspot рисуются точками на фото сцены */
+  inspectHotspots?: boolean
+  /** Подмена фона для этой реплики (SceneId) */
+  sceneId?: string
 }
 
 export interface NPC {
@@ -142,7 +150,33 @@ export interface BusinessCardDetail {
   address?: string
 }
 
-export type ClueDetailType = 'phone' | 'ticket' | 'note' | 'postcard' | 'voice' | 'business-card'
+export interface PhotoDetail {
+  caption: string
+  imageSrc: string
+}
+
+/** Снимок с телефона детектива */
+export interface PhonePhoto {
+  id: string
+  label: string
+  imageSrc: string
+  takenAtLabel: string
+}
+
+export interface ObjectDetail {
+  caption?: string
+  imageSrc?: string
+}
+
+export type ClueDetailType =
+  | 'phone'
+  | 'ticket'
+  | 'note'
+  | 'postcard'
+  | 'voice'
+  | 'business-card'
+  | 'photo'
+  | 'object'
 
 export interface ClueDetail {
   type: ClueDetailType
@@ -152,6 +186,8 @@ export interface ClueDetail {
   postcard?: PostcardDetail
   voice?: VoiceMessageDetail
   businessCard?: BusinessCardDetail
+  photo?: PhotoDetail
+  object?: ObjectDetail
 }
 
 export interface ClueHotspot {
@@ -195,31 +231,6 @@ export interface ScenarioLocation {
   requiredClueIds?: string[]
 }
 
-/** Верная связь на доске улик (порядок a/b не важен) */
-export interface BoardSolutionLink {
-  a: string
-  b: string
-}
-
-export interface BoardPin {
-  clueId: string
-  /** % от ширины доски (0–100) */
-  x: number
-  /** % от высоты доски (0–100) */
-  y: number
-}
-
-export interface BoardLink {
-  id: string
-  fromClueId: string
-  toClueId: string
-}
-
-export interface EvidenceBoardState {
-  pins: BoardPin[]
-  links: BoardLink[]
-}
-
 export interface Scenario {
   id: string
   title: string
@@ -240,8 +251,6 @@ export interface Scenario {
   hubClues?: Clue[]
   /** Сообщения в кабинете следователя */
   hubMessages?: Omit<HubMessage, 'read'>[]
-  /** Верные связи для доски улик */
-  boardSolutionLinks?: BoardSolutionLink[]
 }
 
 export interface ScenarioListItem {
@@ -282,6 +291,9 @@ export type MuseumHallId = 'lobby' | 'office' | 'hall-20' | 'hall-30' | 'hall-38
 /** Подлокация внутри Большого театра */
 export type TheaterRoomId = 'buffet' | 'cloakroom' | 'guard'
 
+/** Подлокация внутри гостиницы */
+export type HotelRoomId = 'lobby' | 'room'
+
 export interface GameState {
   phase: GamePhase
   scenarioId: string
@@ -294,11 +306,12 @@ export interface GameState {
   currentMuseumHallId: MuseumHallId | null
   /** Текущая точка в театре, если currentLocationId === 'theater' */
   currentTheaterRoomId: TheaterRoomId | null
+  /** Текущая точка в отеле, если currentLocationId === 'hotel' */
+  currentHotelRoomId: HotelRoomId | null
   visitedLocations: Set<LocationId>
   completedDialogues: Set<string>
   backpack: Clue[]
   notebook: NotebookEntry[]
-  evidenceBoard: EvidenceBoardState
   unlockedLocations: Set<LocationId>
   hubMessages: HubMessage[]
   hubCluesAvailable: Set<string>
@@ -309,10 +322,12 @@ export interface GameState {
   currentHint: string | null
   /** Имена специалистов, чьи номера открыты письменно (+10 сек каждый) */
   revealedDirectorPhones: Set<string>
-  /** После вечернего звонка директора: пора открыть доску улик */
-  pendingBoardEvening: boolean
   /** Текст срочного звонка дня 2 открыт письменно (+10 сек) */
   revealedDay2CallText: boolean
+  /** Реплики, на которых уже показали нужную улику */
+  presentedLineKeys: Set<string>
+  /** Снимки, сделанные камерой телефона */
+  phonePhotos: PhonePhoto[]
 }
 
-export type ActivePanel = 'none' | 'map' | 'backpack' | 'notebook' | 'board'
+export type ActivePanel = 'none' | 'map' | 'backpack' | 'notebook'

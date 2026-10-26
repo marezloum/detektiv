@@ -1,6 +1,8 @@
 import { useGameContext } from '../context/GameContext'
 import { SceneBackground } from './SceneBackground'
-import { ScreenTopBar } from './ScreenTopBar'
+import { BackButton } from './BackButton'
+import { GameTimer } from './GameTimer'
+import { GameLogo } from './GameLogo'
 import { SiteRoomNav } from './GalleryHallNav'
 import { LOCATIONS } from '../data/locations'
 import {
@@ -17,18 +19,15 @@ import {
   THEATER_ROOMS,
   type TheaterRoomId,
 } from '../data/theaterRooms'
+import {
+  DEFAULT_HOTEL_ROOM,
+  getHotelRoom,
+  hotelSceneForRoom,
+  HOTEL_ROOMS,
+  type HotelRoomId,
+} from '../data/hotelRooms'
 import { getAvailableDialogues, getDialogueLabel } from '../utils/scenarioProgress'
 import type { SceneId } from '../assets/scenes'
-import { asset } from '../utils/asset'
-
-const NPC_PORTRAIT_SRC: Record<string, string> = {
-  'forensic-doctor': asset('/images/npcs/forensic-doctor.png'),
-  'buffet-clerk': asset('/images/npcs/buffet-clerk.png'),
-  'cloakroom-attendant': asset('/images/npcs/cloakroom-attendant.png'),
-  'theater-guard': asset('/images/npcs/theater-guard.png'),
-  'hotel-clerk': asset('/images/npcs/hotel-clerk.png'),
-  'airport-clerk': asset('/images/npcs/airport-clerk.png'),
-}
 
 export function LocationView() {
   const {
@@ -43,6 +42,7 @@ export function LocationView() {
     openPanel,
     setMuseumHall,
     setTheaterRoom,
+    setHotelRoom,
   } = useGameContext()
 
   if (!currentLocation || !state.currentLocationId) return null
@@ -50,10 +50,13 @@ export function LocationView() {
   const meta = LOCATIONS[state.currentLocationId]
   const availableDialogues = getAvailableDialogues(scenario, currentLocation.locationId, state)
 
+  const isForensic = state.currentLocationId === 'forensic'
   const isGallery =
     state.currentLocationId === 'museum' && scenario.id === 'stolen-painting'
   const isTheater =
     state.currentLocationId === 'theater' && scenario.id === 'stolen-painting'
+  const isHotel =
+    state.currentLocationId === 'hotel' && scenario.id === 'stolen-painting'
   const isSite = isGallery || isTheater
 
   const currentHall = isGallery
@@ -62,12 +65,17 @@ export function LocationView() {
   const currentRoom = isTheater
     ? getTheaterRoom(state.currentTheaterRoomId ?? DEFAULT_THEATER_ROOM)
     : null
+  const currentHotelRoom = isHotel
+    ? getHotelRoom(state.currentHotelRoomId ?? DEFAULT_HOTEL_ROOM)
+    : null
 
   const sceneId: SceneId = isGallery
     ? museumSceneForHall(currentHall?.id)
     : isTheater
       ? theaterSceneForRoom(currentRoom?.id)
-      : state.currentLocationId
+      : isHotel
+        ? hotelSceneForRoom(currentHotelRoom?.id)
+        : state.currentLocationId
 
   const talkableHallIds = new Set<MuseumHallId>()
   if (isGallery) {
@@ -101,6 +109,26 @@ export function LocationView() {
   const otherTalkRooms = isTheater
     ? THEATER_ROOMS.filter((r) => talkableRoomIds.has(r.id) && r.id !== currentRoom?.id)
     : []
+  const talkableHotelRoomIds = new Set<HotelRoomId>()
+  if (isHotel) {
+    for (const room of HOTEL_ROOMS) {
+      if (room.dialogueIndexes.some((idx) => availableDialogues.includes(idx))) {
+        talkableHotelRoomIds.add(room.id)
+      }
+    }
+  }
+
+  const hotelDialoguesHere = isHotel
+    ? availableDialogues.filter((idx) =>
+        (currentHotelRoom?.dialogueIndexes ?? []).includes(idx),
+      )
+    : []
+
+  const otherTalkHotelRooms = isHotel
+    ? HOTEL_ROOMS.filter(
+        (r) => talkableHotelRoomIds.has(r.id) && r.id !== currentHotelRoom?.id,
+      )
+    : []
 
   const siteAlreadyDone =
     isSite &&
@@ -117,12 +145,16 @@ export function LocationView() {
     : isTheater && siteDialogueIndex !== null
       ? theaterNpcRole(siteDialogueIndex)
       : currentLocation.npc.role
-  const portraitKey = isTheater && siteDialogueIndex !== null
-    ? theaterPortraitKey(siteDialogueIndex)
-    : currentLocation.npc.portraitKey
-  const portraitSrc = NPC_PORTRAIT_SRC[portraitKey]
 
-  const placeStatus = isSite
+  const placeStatus = isHotel
+    ? hotelDialoguesHere.length > 0
+      ? 'Ждёт разговор'
+      : otherTalkHotelRooms.length > 0
+        ? 'Есть метка'
+        : availableDialogues.length > 0
+          ? 'Можно осмотреть'
+          : 'Осмотрено'
+    : isSite
     ? siteDialogueAvailable
       ? 'Ждёт разговор'
       : siteAlreadyDone
@@ -138,8 +170,10 @@ export function LocationView() {
     ? currentHall.title
     : isTheater && currentRoom
       ? currentRoom.title
-      : meta.name
-  const hudKicker = isGallery || isTheater ? meta.name : 'Место'
+      : isHotel && currentHotelRoom
+        ? currentHotelRoom.title
+        : meta.name
+  const hudKicker = isGallery || isTheater || isHotel ? meta.name : 'Место'
 
   return (
     <div
@@ -148,6 +182,7 @@ export function LocationView() {
         'location-screen',
         isGallery ? 'location-screen--gallery' : '',
         isTheater ? 'location-screen--theater' : '',
+        isHotel ? 'location-screen--hotel' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -155,24 +190,29 @@ export function LocationView() {
       <SceneBackground sceneId={sceneId} className="location-bg" />
       <div className="location-vignette" aria-hidden />
 
-      <ScreenTopBar
-        onBack={goBack}
-        backLabel="В кабинет"
-        onMap={() => openPanel('map')}
-        mapLabel="На карту"
-      />
-
-      <aside
-        className="location-hud"
+      <header
+        className="location-bar"
         aria-label={`${meta.name}${hudTitle !== meta.name ? `, ${hudTitle}` : ''}. ${placeStatus}`}
       >
-        <p className="location-hud-kicker">
-          {hudKicker}
-          {state.gameDay > 1 && <span> · День {state.gameDay}</span>}
-        </p>
-        <h2 className="location-hud-title">{hudTitle}</h2>
-        <p className="location-hud-status">{placeStatus}</p>
-      </aside>
+        <BackButton onClick={goBack} label="В кабинет" />
+        <div className="location-bar-copy">
+          <p className="location-hud-kicker">
+            {hudKicker}
+            {state.gameDay > 1 && <span> · День {state.gameDay}</span>}
+          </p>
+          <h2 className="location-hud-title">{hudTitle}</h2>
+          <p className="location-hud-status">{placeStatus}</p>
+        </div>
+        <GameTimer />
+        <button
+          type="button"
+          className="map-nav-btn"
+          onClick={() => openPanel('map')}
+          aria-label="На карту"
+        >
+          На карту →
+        </button>
+      </header>
 
       {isGallery && currentHall && (
         <SiteRoomNav
@@ -194,21 +234,62 @@ export function LocationView() {
         />
       )}
 
-      <div className="location-dock">
-        {isSite && siteDialogueAvailable && siteDialogueIndex !== null && (
-          <NpcCard name={npcName} role={npcRole} portraitSrc={portraitSrc} />
+      {isHotel && currentHotelRoom && (
+        <SiteRoomNav
+          rooms={HOTEL_ROOMS}
+          currentId={currentHotelRoom.id}
+          onSelect={setHotelRoom}
+          talkableIds={talkableHotelRoomIds}
+          ariaLabel="Точки гостиницы Националь"
+        />
+      )}
+
+      <div className={isForensic ? 'location-dock location-dock--boxed' : 'location-dock'}>
+        {isForensic && <GameLogo size="sm" className="location-dock-logo" />}
+        <div className={isForensic ? 'location-dock-box' : 'location-dock-plain'}>
+        {isHotel && hotelDialoguesHere.length > 0 && (
+          <NpcCard name={currentLocation.npc.name} role={currentLocation.npc.role} />
         )}
 
-        {!isSite && (
-          <NpcCard
-            name={currentLocation.npc.name}
-            role={currentLocation.npc.role}
-            portraitSrc={NPC_PORTRAIT_SRC[currentLocation.npc.portraitKey]}
-          />
+        {isSite && siteDialogueAvailable && siteDialogueIndex !== null && (
+          <NpcCard name={npcName} role={npcRole} />
+        )}
+
+        {!isSite && !isHotel && (
+          <NpcCard name={currentLocation.npc.name} role={currentLocation.npc.role} />
         )}
 
         <div className="location-actions">
-          {isSite ? (
+          {isHotel ? (
+            hotelDialoguesHere.length > 0 ? (
+              hotelDialoguesHere.map((idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => startDialogue(idx)}
+                >
+                  {getDialogueLabel(scenario, currentLocation.locationId, idx)}
+                </button>
+              ))
+            ) : otherTalkHotelRooms.length > 0 ? (
+              <>
+                <p className="dialogue-explore-msg">Разговор в другой точке:</p>
+                {otherTalkHotelRooms.map((room) => (
+                  <button
+                    key={room.id}
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setHotelRoom(room.id)}
+                  >
+                    Войти: {room.shortLabel}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <p className="dialogue-done-msg">✓ Это место уже осмотрено.</p>
+            )
+          ) : isSite ? (
             siteDialogueAvailable && siteDialogueIndex !== null ? (
               <button
                 type="button"
@@ -268,6 +349,7 @@ export function LocationView() {
             Подсказка (+{HINT_PENALTY_SECONDS} сек)
           </button>
         </div>
+        </div>
       </div>
 
       {state.showHint && state.currentHint && (
@@ -282,24 +364,10 @@ export function LocationView() {
   )
 }
 
-function NpcCard({
-  name,
-  role,
-  portraitSrc,
-}: {
-  name: string
-  role: string
-  portraitSrc?: string
-}) {
+function NpcCard({ name, role }: { name: string; role: string }) {
   return (
     <div className="npc-card">
-      <div className="npc-portrait">
-        {portraitSrc ? (
-          <img src={portraitSrc} alt={name} className="npc-portrait-img" draggable={false} />
-        ) : (
-          <span className="npc-initial">{name.charAt(0)}</span>
-        )}
-      </div>
+      <GameLogo size="sm" className="npc-card-logo" />
       <div className="npc-info">
         <h3>{name}</h3>
         <p className="npc-role">{role}</p>
@@ -318,7 +386,7 @@ function galleryNpcName(dialogueIndex: number): string {
     case 2:
       return 'Пётр Сергеев'
     case 3:
-      return 'Дмитрий Орлов'
+      return 'Дмитрий Андреевич'
     default:
       return 'Сотрудник ГТГ'
   }
@@ -334,7 +402,7 @@ function galleryNpcRole(dialogueIndex: number): string {
     case 2:
       return 'Искусствовед'
     case 3:
-      return 'Специалист по безопасности залов'
+      return 'Сотрудник галереи'
     default:
       return 'Сотрудник галереи'
   }
@@ -366,15 +434,3 @@ function theaterNpcRole(dialogueIndex: number): string {
   }
 }
 
-function theaterPortraitKey(dialogueIndex: number): string {
-  switch (dialogueIndex) {
-    case 0:
-      return 'buffet-clerk'
-    case 1:
-      return 'cloakroom-attendant'
-    case 2:
-      return 'theater-guard'
-    default:
-      return 'buffet-clerk'
-  }
-}

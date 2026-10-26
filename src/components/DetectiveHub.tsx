@@ -8,15 +8,14 @@ import { DialogueSpeechControls } from './DialogueSpeechControls'
 import { VoicePhoneRevealList } from './VoicePhoneRevealList'
 import { CallLiveNotebook } from './CallLiveNotebook'
 import {
-  BOARD_EVENING_MONOLOGUE,
   DAY2_URGENT_CALL,
   DIRECTOR_PHONES_CALL,
+  AIRPORT_POLICE_CALL,
 } from '../data/hubCalls'
 
-const OPENING_SMS_DELAY_MS = 1400
 const LANDLINE_CALL_DELAY_MS = 1200
 
-type LandlineCallKind = 'director-phones' | 'day2-urgent'
+type LandlineCallKind = 'director-phones' | 'day2-urgent' | 'airport-out'
 
 export function DetectiveHub() {
   const {
@@ -26,30 +25,26 @@ export function DetectiveHub() {
     hasPendingOpeningSms,
     pendingDirectorCall,
     pendingDay2Call,
-    pendingBoardEvening,
+    pendingAirportCall,
     directorVoiceClue,
     readHubMessage,
     collectHubClue,
     advanceDay,
-    acceptOpeningSms,
     fillSpecialistPhonesFromVoice,
     answerDirectorCall,
     answerDay2Call,
+    placeAirportCall,
     ensureSpecialistsRowsForCall,
-    beginBoardEvening,
-    openBoardFromEvening,
-    dismissBoardEvening,
     revealDay2CallText,
     dismissHint,
     HINT_PENALTY_SECONDS,
     scenario,
+    openPhone,
+    openingMessageReady,
   } = useGameContext()
 
   const [openMessageId, setOpenMessageId] = useState<string | null>(null)
-  const [incomingSmsReady, setIncomingSmsReady] = useState(false)
-  const [smsToastVisible, setSmsToastVisible] = useState(false)
   const [phoneVibrationStopped, setPhoneVibrationStopped] = useState(false)
-  const [smsModalOpen, setSmsModalOpen] = useState(false)
 
   const [landlineCallKind, setLandlineCallKind] = useState<LandlineCallKind | null>(null)
   const [landlineReady, setLandlineReady] = useState(false)
@@ -65,24 +60,9 @@ export function DetectiveHub() {
 
   useEffect(() => {
     if (!hasPendingOpeningSms) {
-      setIncomingSmsReady(false)
-      setSmsToastVisible(false)
       setPhoneVibrationStopped(false)
-      setSmsModalOpen(false)
-      return
     }
-
-    setIncomingSmsReady(false)
-    setSmsToastVisible(false)
-    setPhoneVibrationStopped(false)
-    setSmsModalOpen(false)
-
-    const timer = window.setTimeout(() => {
-      setIncomingSmsReady(true)
-    }, OPENING_SMS_DELAY_MS)
-
-    return () => window.clearTimeout(timer)
-  }, [hasPendingOpeningSms, state.phase])
+  }, [hasPendingOpeningSms])
 
   useEffect(() => {
     if (!pendingLandline) {
@@ -109,35 +89,35 @@ export function DetectiveHub() {
   const voiceTranscript = directorVoiceClue?.detail?.voice?.transcript ?? ''
   const voiceDuration = directorVoiceClue?.detail?.voice?.duration ?? '0:42'
 
-  const handleAcceptOpeningSms = () => {
-    setSmsModalOpen(false)
-    setSmsToastVisible(false)
-    setIncomingSmsReady(false)
-    setPhoneVibrationStopped(false)
-    acceptOpeningSms()
-  }
-
   const handleMobileClick = () => {
-    if (!hasPendingOpeningSms || !incomingSmsReady || phoneVibrationStopped) return
-    setPhoneVibrationStopped(true)
-    setSmsToastVisible(false)
-    setSmsModalOpen(true)
-  }
-
-  const handleToastClick = () => {
-    setSmsModalOpen(true)
+    if (phoneVibrating) {
+      setPhoneVibrationStopped(true)
+      openPhone('lock')
+      return
+    }
+    openPhone(messageOnPhone ? 'lock' : 'home')
   }
 
   const handleLandlineClick = () => {
-    if (!pendingLandline || !landlineReady || !activeLandlineKind) return
+    if (pendingLandline && landlineReady && activeLandlineKind) {
     setLandlineCallKind(activeLandlineKind)
+    setCallAnswered(false)
     setCallModalOpen(true)
+    return
+  }
+  if (pendingAirportCall && !pendingLandline) {
+    setLandlineCallKind('airport-out')
+    setCallAnswered(false)
+    setCallModalOpen(true)
+    }
   }
 
   const handleAnswerCall = () => {
     setCallAnswered(true)
     if (landlineCallKind === 'day2-urgent') {
       answerDay2Call()
+    } else if (landlineCallKind === 'airport-out') {
+      placeAirportCall()
     } else {
       answerDirectorCall()
       ensureSpecialistsRowsForCall()
@@ -145,43 +125,45 @@ export function DetectiveHub() {
   }
 
   const handleCloseCall = () => {
-    const wasPhonesCall = landlineCallKind === 'director-phones' && callAnswered
     setCallModalOpen(false)
-    if (wasPhonesCall) {
-      beginBoardEvening()
-    }
   }
 
-  const phoneVibrating =
-    hasPendingOpeningSms && incomingSmsReady && !phoneVibrationStopped
+  const messageOnPhone = hasPendingOpeningSms && openingMessageReady
+  const phoneVibrating = messageOnPhone && !phoneVibrationStopped
 
   const landlineRinging = pendingLandline && landlineReady && !callModalOpen
+  const landlineOutgoing = Boolean(pendingAirportCall) && !pendingLandline && !callModalOpen
 
   const hasDeskAlerts =
     unreadHubMessages.length > 0 ||
     showAdvanceDay ||
     Boolean(openMessage) ||
     landlineRinging ||
-    pendingBoardEvening ||
+    landlineOutgoing ||
     state.hubCluesAvailable.size > 0
 
   let deskPrompt = 'Рабочий стол. Карта, рюкзак и блокнот — внизу.'
-  if (hasPendingOpeningSms && !incomingSmsReady) {
+  if (hasPendingOpeningSms && !openingMessageReady) {
     deskPrompt = 'Ожидание сигнала…'
   } else if (phoneVibrating) {
-    deskPrompt = 'Кнопочный телефон вибрирует — нажмите на него'
+    deskPrompt = 'Смартфон вибрирует — нажмите на него'
   } else if (landlineRinging) {
     deskPrompt =
       activeLandlineKind === 'day2-urgent'
         ? DAY2_URGENT_CALL.ringingLabel
         : 'Городской телефон звонит — снимите трубку слева'
-  } else if (pendingBoardEvening) {
-    deskPrompt = 'Вечер. Разложите улики на доске.'
+  } else if (landlineOutgoing) {
+    deskPrompt = AIRPORT_POLICE_CALL.ringingLabel
   }
 
   const caseCode = '01'
   const isDay2Call = landlineCallKind === 'day2-urgent'
-  const callContact = isDay2Call ? DAY2_URGENT_CALL : DIRECTOR_PHONES_CALL
+  const isAirportCall = landlineCallKind === 'airport-out'
+  const callContact = isAirportCall
+    ? AIRPORT_POLICE_CALL
+    : isDay2Call
+      ? DAY2_URGENT_CALL
+      : DIRECTOR_PHONES_CALL
 
   return (
     <div className="screen hub-screen hub-screen--noir">
@@ -203,86 +185,14 @@ export function DetectiveHub() {
             ? 'Входящий сигнал'
             : landlineRinging
               ? 'Входящий звонок'
-              : pendingBoardEvening
-                ? 'Вечерний разбор'
+              : landlineOutgoing
+                ? 'Исходящий вызов'
                 : 'Кабинет открыт'}
         </p>
         <div className="hub-dossier-timer">
           <GameTimer />
         </div>
       </aside>
-
-      {hasPendingOpeningSms && smsToastVisible && !smsModalOpen && (
-        <button
-          type="button"
-          className="sms-toast"
-          onClick={handleToastClick}
-          aria-label="Открыть срочное SMS от дежурного"
-        >
-          <span className="sms-toast-signal" aria-hidden />
-          <span className="sms-toast-content">
-            <strong>Дежурный</strong>
-            <span>Срочно! Найдено тело. Нужно ехать в морг...</span>
-          </span>
-          <span className="sms-toast-badge">1</span>
-        </button>
-      )}
-
-      {hasPendingOpeningSms && smsModalOpen && (
-        <div
-          className="sms-modal-backdrop"
-          role="presentation"
-          onClick={() => setSmsModalOpen(false)}
-        >
-          <div
-            className="sms-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sms-modal-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="sms-modal-header">
-              <div>
-                <p className="sms-modal-label">Входящее SMS</p>
-                <h2 id="sms-modal-title">Срочное сообщение</h2>
-              </div>
-              <button
-                type="button"
-                className="sms-modal-close"
-                onClick={() => setSmsModalOpen(false)}
-                aria-label="Закрыть"
-              >
-                ×
-              </button>
-            </header>
-
-            <div className="sms-modal-meta">
-              <span>
-                От: <strong>Дежурный</strong>
-              </span>
-              <span>сейчас</span>
-            </div>
-
-            <p className="sms-modal-body">
-              Следователь, срочно! Найдено тело мужчины. Нужно ехать в морг —
-              Серебряный переулок, судмедэкспертиза. Ждут вас.
-            </p>
-
-            <div className="sms-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={handleAcceptOpeningSms}>
-                Принять вызов →
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setSmsModalOpen(false)}
-              >
-                Позже
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {callModalOpen && (
         <div
@@ -299,17 +209,21 @@ export function DetectiveHub() {
           >
             {!callAnswered ? (
               <>
-                <p className="call-modal-label">Входящий звонок · городской</p>
+                <p className="call-modal-label">
+                  {isAirportCall ? 'Исходящий вызов · городской' : 'Входящий звонок · городской'}
+                </p>
                 <h2 id="call-modal-title">{callContact.contactName}</h2>
                 <p className="call-modal-role">{callContact.role}</p>
                 <p className="call-modal-hint">
-                  {isDay2Call
-                    ? 'Срочный вызов с утра. Снимите трубку.'
-                    : DIRECTOR_PHONES_CALL.answerHint}
+                  {isAirportCall
+                    ? AIRPORT_POLICE_CALL.answerHint
+                    : isDay2Call
+                      ? 'Срочный вызов с утра. Снимите трубку.'
+                      : DIRECTOR_PHONES_CALL.answerHint}
                 </p>
                 <div className="sms-modal-actions">
                   <button type="button" className="btn btn-primary" onClick={handleAnswerCall}>
-                    Снять трубку →
+                    {isAirportCall ? 'Соединить →' : 'Снять трубку →'}
                   </button>
                   <button
                     type="button"
@@ -317,6 +231,18 @@ export function DetectiveHub() {
                     onClick={handleCloseCall}
                   >
                     Позже
+                  </button>
+                </div>
+              </>
+            ) : isAirportCall ? (
+              <>
+                <p className="call-modal-label">Городской звонок</p>
+                <h2 id="call-modal-title">{AIRPORT_POLICE_CALL.contactName}</h2>
+                <p className="call-modal-role">{AIRPORT_POLICE_CALL.role}</p>
+                <p className="voice-phone-intro">{AIRPORT_POLICE_CALL.body}</p>
+                <div className="sms-modal-actions call-modal-actions">
+                  <button type="button" className="btn btn-primary" onClick={handleCloseCall}>
+                    Положить трубку
                   </button>
                 </div>
               </>
@@ -415,37 +341,18 @@ export function DetectiveHub() {
         </div>
       )}
 
-      {pendingBoardEvening && !callModalOpen && (
-        <div className="board-evening-banner" role="status">
-          <p className="board-evening-kicker">Рассказчик</p>
-          <p className="board-evening-text">{BOARD_EVENING_MONOLOGUE}</p>
-          <div className="board-evening-actions">
-            <button type="button" className="btn btn-primary" onClick={openBoardFromEvening}>
-              К доске улик →
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={dismissBoardEvening}>
-              Позже
-            </button>
-          </div>
-        </div>
-      )}
-
       <main className="hub-main">
         <div className="hub-desk-stage">
           <div className="hub-lamp-glow" aria-hidden />
 
           {hasDeskAlerts && (
             <div className="hub-desk-view">
-              {landlineRinging && (
+              {landlineOutgoing && (
                 <div className="hub-call-banner" role="status">
                   <span className="hub-call-pulse" aria-hidden />
                   <div className="hub-call-copy">
-                    <strong>Звонит городской телефон</strong>
-                    <span>
-                      {activeLandlineKind === 'day2-urgent'
-                        ? DAY2_URGENT_CALL.ringingLabel
-                        : DIRECTOR_PHONES_CALL.ringingLabel}
-                    </span>
+                    <strong>Можно звонить</strong>
+                    <span>{AIRPORT_POLICE_CALL.ringingLabel}</span>
                   </div>
                 </div>
               )}
@@ -528,7 +435,9 @@ export function DetectiveHub() {
           <p
             className={[
               'hub-desk-prompt',
-              phoneVibrating || landlineRinging ? 'hub-desk-prompt--alert' : '',
+              phoneVibrating || landlineRinging || landlineOutgoing
+                ? 'hub-desk-prompt--alert'
+                : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -537,12 +446,13 @@ export function DetectiveHub() {
           </p>
 
           <DeskPhones
-            mobileHasSms={hasPendingOpeningSms && incomingSmsReady}
+            mobileHasSms={messageOnPhone}
             mobileVibrating={phoneVibrating}
-            mobileActive={phoneVibrating}
+            mobileActive
             onMobileClick={handleMobileClick}
             landlineRinging={landlineRinging}
-            landlineActive={landlineRinging}
+            landlineOutgoing={landlineOutgoing}
+            landlineActive={landlineRinging || landlineOutgoing}
             onLandlineClick={handleLandlineClick}
           />
         </div>

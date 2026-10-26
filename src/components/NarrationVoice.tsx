@@ -82,7 +82,7 @@ export function NarrationVoice({
       speechSynthesis.cancel()
       const utter = new SpeechSynthesisUtterance(text)
       utter.lang = 'ru-RU'
-      utter.rate = 0.95
+      utter.rate = 1
       utter.onstart = () => setPlaying(true)
       utter.onend = () => {
         setPlaying(false)
@@ -121,7 +121,7 @@ export function NarrationVoice({
       speechSynthesis.cancel()
       const utter = new SpeechSynthesisUtterance(text)
       utter.lang = 'ru-RU'
-      utter.rate = 0.95
+      utter.rate = 1
       utter.onstart = () => setPlaying(true)
       utter.onend = () => {
         setPlaying(false)

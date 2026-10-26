@@ -20,10 +20,9 @@ export function ClueIcon({ kind, className = '', postcardHint }: ClueIconProps) 
     return (
       <span className={root} aria-hidden>
         <span className="clue-icon-phone">
-          <span className="clue-icon-phone-antenna" />
           <span className="clue-icon-phone-body">
+            <span className="clue-icon-phone-punch" />
             <span className="clue-icon-phone-screen" />
-            <span className="clue-icon-phone-keys" />
           </span>
         </span>
       </span>
@@ -84,6 +83,22 @@ export function ClueIcon({ kind, className = '', postcardHint }: ClueIconProps) 
             <span className="clue-icon-ticket-line clue-icon-ticket-line--thin" />
           </span>
         </span>
+      </span>
+    )
+  }
+
+  if (kind === 'photo') {
+    return (
+      <span className={root} aria-hidden>
+        <span className="clue-icon-photo" />
+      </span>
+    )
+  }
+
+  if (kind === 'object') {
+    return (
+      <span className={root} aria-hidden>
+        <span className="clue-icon-object" />
       </span>
     )
   }

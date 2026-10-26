@@ -11,7 +11,18 @@ export type MuseumSceneId =
 
 export type TheaterSceneId = 'theater-buffet' | 'theater-cloakroom' | 'theater-guard'
 
-export type SceneId = LocationId | 'map' | 'title' | MuseumSceneId | TheaterSceneId
+export type HotelSceneId = 'hotel-room'
+
+export type AirportSceneId = 'airport-search'
+
+export type SceneId =
+  | LocationId
+  | 'map'
+  | 'title'
+  | MuseumSceneId
+  | TheaterSceneId
+  | HotelSceneId
+  | AirportSceneId
 
 /** Fallback gradients when image is loading or missing */
 export const SCENE_FALLBACKS: Record<SceneId, string> = {
@@ -41,6 +52,8 @@ export const SCENE_FALLBACKS: Record<SceneId, string> = {
   'theater-cloakroom': 'linear-gradient(170deg, #241810 0%, #4a3420 45%, #120e0a 100%)',
   'theater-guard': 'linear-gradient(180deg, #1a1214 0%, #3a2028 40%, #0e080a 100%)',
   hotel: 'linear-gradient(180deg, #1a1814 0%, #3a3228 45%, #100e0c 100%)',
+  'hotel-room': 'linear-gradient(170deg, #2a2218 0%, #5a4a38 40%, #1a1410 100%)',
+  'airport-search': 'linear-gradient(180deg, #1a2430 0%, #2a3a48 45%, #101820 100%)',
 }
 
 export function sceneImageUrl(id: SceneId): string {
@@ -73,6 +86,8 @@ const ALL_SCENE_IDS: SceneId[] = [
   'theater-cloakroom',
   'theater-guard',
   'hotel',
+  'hotel-room',
+  'airport-search',
 ]
 
 /** Preload scene images for smoother transitions */

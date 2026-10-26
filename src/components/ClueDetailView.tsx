@@ -17,6 +17,8 @@ const TYPE_LABEL: Record<ClueDetailType, string> = {
   postcard: 'Открытка',
   voice: 'Голосовое сообщение',
   'business-card': 'Визитная карточка',
+  photo: 'Фотография',
+  object: 'Вещественная улика',
 }
 
 function postcardTone(title: string): 'unknown' | 'ivan' | 'apotheosis' | 'default' {
@@ -239,6 +241,34 @@ export function ClueDetailView({ clue, onClose }: ClueDetailViewProps) {
               <p className="postcard-hall">{detail.postcard.galleryHall}</p>
               <p className="postcard-desc">{detail.postcard.description}</p>
             </div>
+          </div>
+        )}
+
+        {detail.type === 'photo' && detail.photo && (
+          <div className="clue-photo">
+            <img
+              src={asset(detail.photo.imageSrc)}
+              alt={clue.title}
+              className="clue-photo__img"
+              draggable={false}
+            />
+            <p className="clue-photo-caption">{detail.photo.caption}</p>
+          </div>
+        )}
+
+        {detail.type === 'object' && detail.object && (
+          <div className="clue-object">
+            {detail.object.imageSrc && (
+              <img
+                src={asset(detail.object.imageSrc)}
+                alt={clue.title}
+                className="clue-object__img"
+                draggable={false}
+              />
+            )}
+            {detail.object.caption && (
+              <p className="clue-object-caption">{detail.object.caption}</p>
+            )}
           </div>
         )}
 

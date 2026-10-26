@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react'
+
 interface DeskPhonesProps {
   mobileHasSms: boolean
   mobileVibrating: boolean
   mobileActive: boolean
   onMobileClick: () => void
   landlineRinging?: boolean
+  landlineOutgoing?: boolean
   landlineActive?: boolean
   onLandlineClick?: () => void
 }
@@ -14,9 +17,22 @@ export function DeskPhones({
   mobileActive,
   onMobileClick,
   landlineRinging = false,
+  landlineOutgoing = false,
   landlineActive = false,
   onLandlineClick,
 }: DeskPhonesProps) {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 10000)
+    return () => window.clearInterval(id)
+  }, [])
+  const time = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const dateLabel = now.toLocaleDateString('ru-RU', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+
   return (
     <div className="hub-desk-phones" aria-label="Телефоны на столе">
       <button
@@ -25,16 +41,25 @@ export function DeskPhones({
           'desk-phone',
           'desk-phone--landline',
           landlineRinging ? 'desk-phone--landline-ring' : '',
+          landlineOutgoing ? 'desk-phone--landline-out' : '',
         ]
           .filter(Boolean)
           .join(' ')}
         onClick={onLandlineClick}
         disabled={!landlineActive}
-        title={landlineRinging ? 'Входящий звонок — снимите трубку' : 'Городской телефон с диском'}
+        title={
+          landlineRinging
+            ? 'Входящий звонок — снимите трубку'
+            : landlineOutgoing
+              ? 'Позвонить в полицию аэропорта'
+              : 'Городской телефон с диском'
+        }
         aria-label={
           landlineRinging
             ? 'Городской телефон — входящий звонок от директора'
-            : 'Городской телефон на столе'
+            : landlineOutgoing
+              ? 'Городской телефон — позвонить в аэропорт'
+              : 'Городской телефон на столе'
         }
       >
         <div className="landline-phone" aria-hidden>
@@ -44,7 +69,11 @@ export function DeskPhones({
           </div>
         </div>
         <span className="desk-phone-label">
-          {landlineRinging ? 'Городской — звонит!' : 'Городской'}
+          {landlineRinging
+            ? 'Городской — звонит!'
+            : landlineOutgoing
+              ? 'Городской — позвонить'
+              : 'Городской'}
         </span>
       </button>
 
@@ -60,33 +89,60 @@ export function DeskPhones({
           .join(' ')}
         onClick={onMobileClick}
         disabled={!mobileActive}
-        title={mobileHasSms ? 'Новое SMS — нажмите' : 'Кнопочный телефон'}
+        title={mobileHasSms ? 'Новое сообщение — нажмите' : 'Смартфон'}
         aria-label={
-          mobileHasSms ? 'Кнопочный телефон — новое SMS' : 'Кнопочный телефон на столе'
+          mobileHasSms ? 'Смартфон — новое сообщение' : 'Смартфон на столе'
         }
       >
-        <div className="feature-phone" aria-hidden>
-          <div className="feature-phone-antenna" />
-          <div className="feature-phone-body">
-            <div className={`feature-phone-screen ${mobileHasSms ? 'feature-phone-screen--lit' : ''}`}>
-              {mobileHasSms ? (
-                <>
-                  <span className="feature-phone-sms-icon">✉</span>
-                  <span className="feature-phone-sms-text">SMS</span>
-                </>
-              ) : (
-                <span className="feature-phone-clock">12:34</span>
-              )}
-            </div>
-            <div className="feature-phone-keypad">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <span key={i} className="feature-phone-key" />
-              ))}
-            </div>
-          </div>
-        </div>
+        <span className="desk-phone-scale" aria-hidden>
+          <span className="dphone">
+            <span className="dphone-side dphone-side--vol" />
+            <span className="dphone-side dphone-side--power" />
+            <span className="dphone-glass">
+              <span className="dphone-screen dphone-screen--lock">
+                <span className="dphone-punch" />
+                <span className="dphone-status">
+                  <span className="dphone-status-time">{time}</span>
+                  <span className="dphone-status-icons">
+                    <span className="dphone-signal">
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <span className="dphone-battery">
+                      <span />
+                    </span>
+                  </span>
+                </span>
+                <span className="dphone-lock">
+                  <span className="dphone-lock-time">{time}</span>
+                  <span className="dphone-lock-date">{dateLabel}</span>
+                  {mobileHasSms ? (
+                    <span className="dphone-note">
+                      <span className="dphone-app-icon dphone-app-icon--msg" />
+                      <span className="dphone-note-copy">
+                        <span className="dphone-note-top">
+                          <strong>Сообщения</strong>
+                          <span>сейчас</span>
+                        </span>
+                        <span className="dphone-note-name">Шеф</span>
+                        <span className="dphone-note-preview">
+                          Убийство недалеко от Третьяковской галереи…
+                        </span>
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="dphone-lock-empty">Нет уведомлений</span>
+                  )}
+                </span>
+                <span className="dphone-gesture" />
+              </span>
+            </span>
+          </span>
+        </span>
         <span className="desk-phone-label">
-          {mobileHasSms ? 'Кнопочный — SMS!' : 'Кнопочный'}
+          {mobileHasSms ? 'Новое сообщение' : 'Смартфон'}
         </span>
       </button>
     </div>

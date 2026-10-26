@@ -10,6 +10,8 @@ import { EndScreen } from './components/EndScreen'
 import { GameTimer } from './components/GameTimer'
 import { ToolBar } from './components/ToolBar'
 import { GameOverlayPanels } from './components/GameOverlayPanels'
+import { AdBanner } from './components/AdBanner'
+import { DetectivePhone } from './components/DetectivePhone'
 
 function GameRouter() {
   const { state } = useGameContext()
@@ -27,26 +29,27 @@ function GameRouter() {
       return (
         <div className="game-play-layout">
           <LocationView />
-          <div className="game-dock">
-            <div className="game-dock-bar">
-              <GameTimer />
-            </div>
+          <div className="game-dock game-dock--tools">
             <ToolBar />
           </div>
         </div>
       )
-    case 'dialogue':
+    case 'dialogue': {
+      const morgueDialogue = state.currentLocationId === 'forensic'
       return (
         <div className="game-play-layout">
           <DialogueView />
-          <div className="game-dock">
-            <div className="game-dock-bar">
-              <GameTimer />
-            </div>
+          <div className={morgueDialogue ? 'game-dock game-dock--tools' : 'game-dock'}>
+            {!morgueDialogue && (
+              <div className="game-dock-bar">
+                <GameTimer />
+              </div>
+            )}
             <ToolBar />
           </div>
         </div>
       )
+    }
     case 'solve':
       return <SolveModal />
     case 'victory':
@@ -61,8 +64,12 @@ export default function App() {
   return (
     <GameProvider>
       <div className="app">
-        <GameRouter />
-        <GameOverlayPanels />
+        <div className="app-stage">
+          <GameRouter />
+          <GameOverlayPanels />
+          <DetectivePhone />
+        </div>
+        <AdBanner />
       </div>
     </GameProvider>
   )

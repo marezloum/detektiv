@@ -63,12 +63,8 @@ function HallCaseCard({
 }
 
 export function GameHall() {
-  const { scenario, scenarioList, selectScenario, startGame, goToCover } = useGameContext()
-  const selectedIndex = Math.max(
-    0,
-    scenarioList.findIndex((item) => item.id === scenario.id),
-  )
-  const caseCode = String(selectedIndex + 1).padStart(2, '0')
+  const { scenario, scenarioList, selectScenarioAndEnterHall, startGame, goToCover } =
+    useGameContext()
 
   return (
     <div className="screen hall-screen">
@@ -81,40 +77,35 @@ export function GameHall() {
       <ScreenTopBar onBack={goToCover} backLabel="На главную" />
 
       <div className="hall-panel">
-        <header className="hall-header">
-          <GameLogo size="sm" className="hall-logo" />
-          <p className="hall-eyebrow">Зал открытых дел</p>
-          <p className="hall-case-kicker">Дело №{caseCode}</p>
-          <h1 className="hall-title">{scenario.title}</h1>
-          <p className="hall-intro">
-            Выберите дело и начните расследование по Москве — собирайте улики и записывайте
-            подсказки в блокнот.
-          </p>
-        </header>
+        <div className="hall-panel-body">
+          <header className="hall-header">
+            <GameLogo size="sm" className="hall-logo" />
+            <p className="hall-eyebrow">Зал открытых дел</p>
+            <p className="hall-intro">
+              Выберите дело и начните расследование по Москве — собирайте улики и записывайте
+              подсказки в блокнот.
+            </p>
+          </header>
 
-        <section className="hall-cases" aria-labelledby="hall-cases-heading">
-          <h2 id="hall-cases-heading" className="hall-section-title">
-            Открытые дела
-          </h2>
-          <div className="hall-case-list">
-            {scenarioList.map((item, index) => (
-              <HallCaseCard
-                key={item.id}
-                item={item}
-                index={index}
-                selected={item.id === scenario.id}
-                onSelect={selectScenario}
-              />
-            ))}
-          </div>
-        </section>
+          <section className="hall-cases" aria-labelledby="hall-cases-heading">
+            <h2 id="hall-cases-heading" className="hall-section-title">
+              Открытые дела
+            </h2>
+            <div className="hall-case-list">
+              {scenarioList.map((item, index) => (
+                <HallCaseCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  selected={item.id === scenario.id}
+                  onSelect={selectScenarioAndEnterHall}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
 
         <footer className="hall-footer">
-          <div className="hall-selected">
-            <span className="hall-selected-label">Текущее дело</span>
-            <strong className="hall-selected-title">{scenario.title}</strong>
-            <p className="hall-selected-desc">{scenario.mystery}</p>
-          </div>
           <button type="button" className="btn btn-primary btn-lg hall-start-btn" onClick={startGame}>
             Начать расследование
           </button>

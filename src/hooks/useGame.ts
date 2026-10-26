@@ -3,20 +3,27 @@ import type {
   ActivePanel,
   DialogueLine,
   GamePhase,
+  HotelRoomId,
   LocationId,
   MuseumHallId,
   TheaterRoomId,
   NotebookEntry,
   NotebookTable,
+  PhonePhoto,
 } from '../types/game'
 import { getScenario, SCENARIO_LIST, DEFAULT_SCENARIO_ID } from '../data/scenarios'
 import { MAP_POINTS } from '../data/locations'
-import { preloadSceneImages } from '../assets/scenes'
+import { preloadSceneImages, sceneImageUrl } from '../assets/scenes'
+import { playScene } from '../utils/playScene'
 import { firstTalkableMuseumHall, museumHallForDialogue } from '../data/tretyakovHalls'
 import {
   firstTalkableTheaterRoom,
   theaterRoomForDialogue,
 } from '../data/theaterRooms'
+import {
+  firstTalkableHotelRoom,
+  hotelRoomForDialogue,
+} from '../data/hotelRooms'
 import { buildNotebookEntryFromLine, createEmptySpecialistsTable, addRowToTable, fillPhonesInSpecialistsTable, GTG_SPECIALISTS_TABLE_ID, GTG_SPECIALISTS_COLUMNS, PHONE_REVEAL_PENALTY_SECONDS } from '../utils/notebook'
 import {
   applyStolenPaintingProgress,
@@ -24,27 +31,22 @@ import {
   getAvailableDialogues,
   getInitialUnlockedLocations,
   hasPendingDay2Call,
+  hasPendingAirportCall,
   hasPendingDirectorCall,
   isLocationCleared,
 } from '../utils/scenarioProgress'
-import {
-  countMatchedSolutionLinks,
-  emptyEvidenceBoard,
-  linkKey,
-  stripClueFromBoard,
-} from '../utils/evidenceBoard'
 
 const HINT_PENALTY_SECONDS = 10
 
-export type SavePulseTarget = 'backpack' | 'notebook' | 'board'
+export type SavePulseTarget = 'backpack' | 'notebook'
 const SAVE_PULSE_MS = 1600
 
 const HINTS: Partial<Record<LocationId, string>> = {
   forensic: 'Срочное сообщение — отправляйтесь в морг (судмедэкспертиза).',
   museum: 'В Третьяковке: кабинет директора, затем залы 20, 30 и 38 — у каждого свой специалист.',
   theater: 'В Большом: буфет, затем гардероб, затем охрана у входа.',
-  hotel: 'Гостиница «Альфа» — машина с эмблемой отеля возила Волкова.',
-  airport: 'Шереметьево — стойка информации. Нужна фамилия из отеля.',
+    hotel: 'Гостиница «Националь» — такси отеля два часа стояло у Большого.',
+    airport: 'Шереметьево — полиция аэропорта. Нужен звонок из кабинета.',
   'police-station': 'Начните с управления полиции — свидетель что-то видел.',
   'public-cultural': 'Художник находится на площади.',
 }
@@ -61,11 +63,11 @@ function createInitialState(scenarioId: string) {
     currentLocationId: null as LocationId | null,
     currentMuseumHallId: null as MuseumHallId | null,
     currentTheaterRoomId: null as TheaterRoomId | null,
+    currentHotelRoomId: null as HotelRoomId | null,
     visitedLocations: new Set<LocationId>(),
     completedDialogues: new Set<string>(),
     backpack: [...scenario.initialClues],
     notebook: [] as NotebookEntry[],
-    evidenceBoard: emptyEvidenceBoard(),
     unlockedLocations: getInitialUnlockedLocations(scenario),
     hubMessages: (scenario.hubMessages ?? []).map((m) => ({ ...m, read: false })),
     hubCluesAvailable: new Set<string>(),
@@ -75,14 +77,19 @@ function createInitialState(scenarioId: string) {
     showHint: false,
     currentHint: null as string | null,
     revealedDirectorPhones: new Set<string>(),
-    pendingBoardEvening: false,
     revealedDay2CallText: false,
+    presentedLineKeys: new Set<string>(),
+    phonePhotos: [] as PhonePhoto[],
   }
 }
+
+export type DetectivePhoneScreen = 'lock' | 'home' | 'messages' | 'camera' | 'gallery'
 
 export function useGame() {
   const [state, setState] = useState(() => createInitialState(DEFAULT_SCENARIO_ID))
   const [activePanel, setActivePanel] = useState<ActivePanel>('none')
+  const [phoneOpen, setPhoneOpen] = useState(false)
+  const [phoneEntry, setPhoneEntry] = useState<DetectivePhoneScreen>('home')
   const [rulesUnderstood, setRulesUnderstood] = useState<boolean | null>(null)
   const [savePulse, setSavePulse] = useState<{
     target: SavePulseTarget
@@ -163,6 +170,7 @@ export function useGame() {
         currentLocationId: null,
         currentMuseumHallId: null,
         currentTheaterRoomId: null,
+        currentHotelRoomId: null,
         visitedLocations: new Set([...s.visitedLocations, 'detective-room']),
       }
     })
@@ -185,16 +193,66 @@ export function useGame() {
     state.gameDay === 1 &&
     !state.completedDialogues.has('detective-room-0')
 
+  const [openingMessageReady, setOpeningMessageReady] = useState(false)
+  useEffect(() => {
+    if (!hasPendingOpeningSms) {
+      setOpeningMessageReady(false)
+      return
+    }
+    setOpeningMessageReady(false)
+    const timer = window.setTimeout(() => setOpeningMessageReady(true), 1400)
+    return () => window.clearTimeout(timer)
+  }, [hasPendingOpeningSms, state.phase])
+
+  const openPhone = (screen?: DetectivePhoneScreen) => {
+    setActivePanel('none')
+    setPhoneEntry(screen ?? (hasPendingOpeningSms && openingMessageReady ? 'lock' : 'home'))
+    setPhoneOpen(true)
+  }
+
+  const closePhone = () => setPhoneOpen(false)
+
+  const capturePhonePhoto = () => {
+    const shot = playScene(stateRef.current)
+    const now = new Date()
+    const photo: PhonePhoto = {
+      id: `shot-${now.getTime()}`,
+      label: shot.label,
+      imageSrc: sceneImageUrl(shot.sceneId),
+      takenAtLabel: now.toLocaleString('ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    }
+    setState((s) => ({
+      ...s,
+      phonePhotos: [photo, ...(s.phonePhotos ?? [])].slice(0, 24),
+    }))
+  }
+
   const requestHint = () => {
     const unvisited = scenario.locationOrder.filter(
       (id: LocationId) => !state.visitedLocations.has(id) && id !== 'detective-room',
     )
     const next = unvisited.find((id) => state.unlockedLocations.has(id))
-    const hint = next
+    let hint = next
       ? (HINTS[next] ?? 'Отправляйтесь в новые места на карте.')
       : state.gameDay === 1 && canAdvanceDay(state)
         ? 'Завершите день в кабинете — завтра снова в галерею.'
         : 'Проверьте улики в рюкзаке и записи в блокноте.'
+
+    const done = state.completedDialogues
+    if (state.currentLocationId === 'hotel' && done.has('hotel-0') && !done.has('hotel-2')) {
+      hint = 'Две фамилии в журнале. Сверьте их с открытками в рюкзаке.'
+    } else if (state.currentLocationId === 'hotel' && done.has('hotel-2') && !done.has('hotel-3')) {
+      hint = 'Верещагина уехала. Осмотрите её номер.'
+    } else if (hasPendingAirportCall(state)) {
+      hint = 'В кабинете — городской телефон. Позвоните в полицию Шереметьева.'
+    } else if (state.currentLocationId === 'airport' && done.has('airport-0') && !done.has('airport-1')) {
+      hint = 'Гипс слишком новый. В отеле она ходила сама, без хромоты.'
+    }
     setState((s) => ({
       ...s,
       hintCount: s.hintCount + 1,
@@ -225,7 +283,7 @@ export function useGame() {
       setState((s) => ({
         ...s,
         showHint: true,
-        currentHint: 'Сначала примите срочный вызов — нажмите на телефон на столе, затем «Принять вызов».',
+        currentHint: 'Сначала прочитайте сообщение на телефоне и уберите его.',
       }))
       return
     }
@@ -238,13 +296,15 @@ export function useGame() {
     let hint = 'Это место ещё закрыто. Сначала завершите предыдущие точки маршрута.'
     if (scenario.id === 'stolen-painting') {
       if (locationId === 'forensic' && !done.has('detective-room-0')) {
-        hint = 'Морг (А2) откроется после SMS. Примите вызов на телефоне в кабинете.'
+        hint = 'Морг (А2) откроется, когда закроете телефон с сообщением.'
       } else if (locationId === 'theater' || locationId === 'museum') {
         hint = 'Сначала осмотрите вещи погибшего в морге.'
       } else if (locationId === 'hotel') {
         hint = 'Сначала расспросите охрану в Большом театре.'
       } else if (locationId === 'airport') {
-        hint = 'Сначала поговорите с администратором гостиницы «Альфа».'
+        hint = hasPendingAirportCall(state)
+          ? 'Сначала позвоните в полицию аэропорта с городского телефона в кабинете.'
+          : 'Сначала осмотрите номер в «Национале» и позвоните из кабинета.'
       }
     }
     setState((s) => ({ ...s, showHint: true, currentHint: hint }))
@@ -269,6 +329,7 @@ export function useGame() {
             currentLocationId: null,
             currentMuseumHallId: null,
             currentTheaterRoomId: null,
+            currentHotelRoomId: null,
             showHint: false,
             currentHint: null,
           }
@@ -296,6 +357,7 @@ export function useGame() {
         currentLocationId: null,
         currentMuseumHallId: null,
         currentTheaterRoomId: null,
+        currentHotelRoomId: null,
       }))
       setActivePanel('none')
       return
@@ -305,6 +367,7 @@ export function useGame() {
       if (!s.unlockedLocations.has(locationId)) return s
       let museumHall: MuseumHallId | null = null
       let theaterRoom: TheaterRoomId | null = null
+      let hotelRoom: HotelRoomId | null = null
       if (locationId === 'museum') {
         const available = getAvailableDialogues(scenario, 'museum', s)
         museumHall = firstTalkableMuseumHall(available)
@@ -313,12 +376,17 @@ export function useGame() {
         const available = getAvailableDialogues(scenario, 'theater', s)
         theaterRoom = firstTalkableTheaterRoom(available)
       }
+      if (locationId === 'hotel') {
+        const available = getAvailableDialogues(scenario, 'hotel', s)
+        hotelRoom = firstTalkableHotelRoom(available)
+      }
       return {
         ...s,
         phase: 'location' as GamePhase,
         currentLocationId: locationId,
         currentMuseumHallId: museumHall,
         currentTheaterRoomId: theaterRoom,
+        currentHotelRoomId: hotelRoom,
         visitedLocations: new Set([...s.visitedLocations, locationId]),
       }
     })
@@ -339,6 +407,13 @@ export function useGame() {
     })
   }
 
+  const setHotelRoom = (roomId: HotelRoomId) => {
+    setState((s) => {
+      if (s.currentLocationId !== 'hotel') return s
+      return { ...s, currentHotelRoomId: roomId, showHint: false, currentHint: null }
+    })
+  }
+
   const startDialogue = (dialogueIndex = 0) => {
     setState((s) => ({
       ...s,
@@ -354,6 +429,10 @@ export function useGame() {
         s.currentLocationId === 'theater'
           ? theaterRoomForDialogue(dialogueIndex)
           : s.currentTheaterRoomId,
+      currentHotelRoomId:
+        s.currentLocationId === 'hotel'
+          ? hotelRoomForDialogue(dialogueIndex)
+          : s.currentHotelRoomId,
     }))
   }
 
@@ -370,6 +449,18 @@ export function useGame() {
 
     const dialogue = loc.dialogues[state.activeDialogueIndex]
     const currentLine = dialogue[state.dialogueStep]
+    const lineKey = `${loc.locationId}-${state.activeDialogueIndex}-${state.dialogueStep}`
+
+    if (currentLine?.requireShowClueId && !state.presentedLineKeys.has(lineKey)) {
+      return
+    }
+
+    if (currentLine?.inspectHotspots && currentLine.clueIds?.length) {
+      const missing = currentLine.clueIds.some(
+        (id) => !state.backpack.some((c) => c.id === id),
+      )
+      if (missing) return
+    }
 
     const nextStep = state.dialogueStep + 1
     if (nextStep < dialogue.length) {
@@ -401,10 +492,17 @@ export function useGame() {
         updates = { ...updates, ...progress }
 
         if (dialogueKey === 'forensic-0') {
+          const photo = loc.clues.find((c) => c.id === 'clue-victim-photo')
+          const backpack = s.backpack.some((c) => c.id === 'clue-victim-photo')
+            ? s.backpack
+            : photo
+              ? [...s.backpack, { ...photo, discoveredAt: s.elapsedSeconds }]
+              : s.backpack
           updates = {
             ...updates,
+            backpack,
             showHint: true,
-            currentHint: 'На карте открыты Третьяковка (А3) и Большой театр (А4). Билет — в рюкзаке.',
+            currentHint: 'На карте открыты Третьяковка (А3) и Большой театр (А4). Фото — в рюкзаке.',
           }
         }
 
@@ -448,23 +546,70 @@ export function useGame() {
             updates = {
               ...updates,
               showHint: true,
-              currentHint: 'Гардеробщица отправила вас к охране у входа.',
+              currentHint: 'Покажите фото охране у входа.',
             }
           }
           if (dialogueKey === 'theater-2') {
             updates = {
               ...updates,
               showHint: true,
-              currentHint: 'Машина гостиницы «Альфа». Откройте карту — точка А5.',
+              currentHint: 'Такси «Националя». Откройте карту — точка А5.',
             }
           }
         }
 
-        if (dialogueKey === 'hotel-0') {
+        if (dialogueKey.startsWith('hotel-')) {
+          const nextState = { ...s, ...progress }
+          const available = getAvailableDialogues(scenario, 'hotel', nextState)
+          const nextRoom = firstTalkableHotelRoom(available)
+          updates = {
+            ...updates,
+            phase: 'location',
+            currentHotelRoomId: nextRoom,
+          }
+          if (dialogueKey === 'hotel-0') {
+            updates = {
+              ...updates,
+              showHint: true,
+              currentHint: 'Две фамилии. Сверьте их с открытками в рюкзаке.',
+            }
+          }
+          if (dialogueKey === 'hotel-1') {
+            updates = {
+              ...updates,
+              showHint: true,
+              currentHint: 'Лебедева ни при чём. В журнале ещё одна фамилия.',
+            }
+          }
+          if (dialogueKey === 'hotel-2') {
+            updates = {
+              ...updates,
+              showHint: true,
+              currentHint: 'Она уехала в Шереметьево. Осмотрите номер.',
+            }
+          }
+          if (dialogueKey === 'hotel-3') {
+            updates = {
+              ...updates,
+              showHint: true,
+              currentHint: 'Вернитесь в кабинет — городским телефоном предупредите аэропорт.',
+            }
+          }
+        }
+
+        if (dialogueKey === 'airport-0') {
           updates = {
             ...updates,
             showHint: true,
-            currentHint: 'После театра машина ушла в Шереметьево. Точка на карте открыта.',
+            currentHint: 'Её вызвали к стойке. Идите к досмотру.',
+          }
+        }
+
+        if (dialogueKey === 'airport-1') {
+          updates = {
+            ...updates,
+            showHint: true,
+            currentHint: 'Картина найдена. В кабинете можно назвать виновную.',
           }
         }
       } else {
@@ -480,6 +625,34 @@ export function useGame() {
       }
 
       return { ...s, ...updates }
+    })
+  }
+
+  const presentClue = (clueId: string): boolean => {
+    const loc = scenario.locations.find((l) => l.locationId === state.currentLocationId)
+    if (!loc) return false
+    const line = loc.dialogues[state.activeDialogueIndex]?.[state.dialogueStep]
+    if (!line?.requireShowClueId) return false
+    const lineKey = `${loc.locationId}-${state.activeDialogueIndex}-${state.dialogueStep}`
+    if (clueId !== line.requireShowClueId) return false
+    setState((s) => ({
+      ...s,
+      presentedLineKeys: new Set([...s.presentedLineKeys, lineKey]),
+    }))
+    return true
+  }
+
+  const placeAirportCall = () => {
+    if (!hasPendingAirportCall(stateRef.current)) return
+    setState((s) => {
+      if (!hasPendingAirportCall(s)) return s
+      return {
+        ...s,
+        completedDialogues: new Set([...s.completedDialogues, 'airport-call-0']),
+        unlockedLocations: new Set<LocationId>([...s.unlockedLocations, 'airport']),
+        showHint: true,
+        currentHint: 'Шереметьево открыто на карте. Её уже объявляют по громкой связи.',
+      }
     })
   }
 
@@ -737,31 +910,6 @@ export function useGame() {
     notifySaved('backpack')
   }
 
-  /** После вечернего звонка с номерами — монолог про доску в кабинете */
-  const beginBoardEvening = () => {
-    if (stateRef.current.completedDialogues.has('board-evening-0')) return
-    if (stateRef.current.pendingBoardEvening) return
-    setState((s) => ({ ...s, pendingBoardEvening: true }))
-    notifySaved('board')
-  }
-
-  const openBoardFromEvening = () => {
-    setState((s) => ({
-      ...s,
-      pendingBoardEvening: false,
-      completedDialogues: new Set([...s.completedDialogues, 'board-evening-0']),
-    }))
-    setActivePanel('board')
-  }
-
-  const dismissBoardEvening = () => {
-    setState((s) => ({
-      ...s,
-      pendingBoardEvening: false,
-      completedDialogues: new Set([...s.completedDialogues, 'board-evening-0']),
-    }))
-  }
-
   /** Утро дня 2: снять трубку городского — urgency, без SMS */
   const answerDay2Call = () => {
     setState((s) => ({
@@ -800,106 +948,6 @@ export function useGame() {
     setState((s) => ({
       ...s,
       backpack: s.backpack.filter((c) => c.id !== clueId),
-      evidenceBoard: stripClueFromBoard(s.evidenceBoard, clueId),
-    }))
-  }
-
-  const pinClueOnBoard = (clueId: string, x: number, y: number) => {
-    if (!stateRef.current.backpack.some((c) => c.id === clueId)) return
-    if (stateRef.current.evidenceBoard.pins.some((p) => p.clueId === clueId)) return
-
-    const clampedX = Math.min(92, Math.max(8, x))
-    const clampedY = Math.min(88, Math.max(10, y))
-    setState((s) => {
-      if (!s.backpack.some((c) => c.id === clueId)) return s
-      if (s.evidenceBoard.pins.some((p) => p.clueId === clueId)) return s
-      return {
-        ...s,
-        evidenceBoard: {
-          ...s.evidenceBoard,
-          pins: [...s.evidenceBoard.pins, { clueId, x: clampedX, y: clampedY }],
-        },
-      }
-    })
-    notifySaved('board')
-  }
-
-  const moveBoardPin = (clueId: string, x: number, y: number) => {
-    setState((s) => ({
-      ...s,
-      evidenceBoard: {
-        ...s.evidenceBoard,
-        pins: s.evidenceBoard.pins.map((p) =>
-          p.clueId === clueId
-            ? {
-                ...p,
-                x: Math.min(92, Math.max(8, x)),
-                y: Math.min(88, Math.max(10, y)),
-              }
-            : p,
-        ),
-      },
-    }))
-  }
-
-  const unpinClueFromBoard = (clueId: string) => {
-    setState((s) => ({
-      ...s,
-      evidenceBoard: stripClueFromBoard(s.evidenceBoard, clueId),
-    }))
-  }
-
-  const linkBoardPins = (fromClueId: string, toClueId: string) => {
-    if (fromClueId === toClueId) return
-    const pins = stateRef.current.evidenceBoard.pins
-    if (!pins.some((p) => p.clueId === fromClueId) || !pins.some((p) => p.clueId === toClueId)) {
-      return
-    }
-    const key = linkKey(fromClueId, toClueId)
-    if (
-      stateRef.current.evidenceBoard.links.some(
-        (l) => linkKey(l.fromClueId, l.toClueId) === key,
-      )
-    ) {
-      return
-    }
-
-    setState((s) => {
-      const currentPins = s.evidenceBoard.pins
-      if (
-        !currentPins.some((p) => p.clueId === fromClueId) ||
-        !currentPins.some((p) => p.clueId === toClueId)
-      ) {
-        return s
-      }
-      if (s.evidenceBoard.links.some((l) => linkKey(l.fromClueId, l.toClueId) === key)) {
-        return s
-      }
-      return {
-        ...s,
-        evidenceBoard: {
-          ...s.evidenceBoard,
-          links: [
-            ...s.evidenceBoard.links,
-            {
-              id: `link-${key}`,
-              fromClueId,
-              toClueId,
-            },
-          ],
-        },
-      }
-    })
-    notifySaved('board')
-  }
-
-  const unlinkBoardPins = (linkId: string) => {
-    setState((s) => ({
-      ...s,
-      evidenceBoard: {
-        ...s.evidenceBoard,
-        links: s.evidenceBoard.links.filter((l) => l.id !== linkId),
-      },
     }))
   }
 
@@ -922,7 +970,6 @@ export function useGame() {
     setState((s) => ({
       ...s,
       gameDay: 2,
-      pendingBoardEvening: false,
       revealedDay2CallText: false,
       showHint: true,
       currentHint: 'Начался второй день. Скоро зазвонит городской телефон.',
@@ -995,19 +1042,15 @@ export function useGame() {
 
   const canSolve =
     scenario.id === 'stolen-painting'
-      ? false
+      ? state.backpack.some((c) => c.id === 'clue-cast-painting')
       : state.notebook.length + state.backpack.length >= 3
 
   const unreadHubMessages = state.hubMessages.filter((m) => !m.read)
   const showAdvanceDay = canAdvanceDay(state)
   const pendingDirectorCall = hasPendingDirectorCall(state)
   const pendingDay2Call = hasPendingDay2Call(state)
+  const pendingAirportCall = hasPendingAirportCall(state)
   const directorVoiceClue = scenario.hubClues?.find((c) => c.id === 'clue-voice-director')
-  const boardMatchedLinks = countMatchedSolutionLinks(
-    state.evidenceBoard.links,
-    scenario.boardSolutionLinks,
-  )
-  const boardSolutionTotal = scenario.boardSolutionLinks?.length ?? 0
 
   return {
     scenario,
@@ -1022,12 +1065,16 @@ export function useGame() {
     unreadHubMessages,
     showAdvanceDay,
     hasPendingOpeningSms,
+    openingMessageReady,
+    phoneOpen,
+    phoneEntry,
+    openPhone,
+    closePhone,
+    capturePhonePhoto,
     pendingDirectorCall,
     pendingDay2Call,
-    pendingBoardEvening: state.pendingBoardEvening,
+    pendingAirportCall,
     directorVoiceClue,
-    boardMatchedLinks,
-    boardSolutionTotal,
     formatTime,
     startGame,
     enterHall,
@@ -1042,11 +1089,14 @@ export function useGame() {
     travelTo,
     setMuseumHall,
     setTheaterRoom,
+    setHotelRoom,
     showMapLockedHint,
     acceptOpeningSms,
     startDialogue,
     retreatDialogue,
     advanceDialogue,
+    presentClue,
+    placeAirportCall,
     addNotebookFromLine,
     addNotebookRowFromLine,
     removeNotebookRowFromLine,
@@ -1059,17 +1109,9 @@ export function useGame() {
     answerDirectorCall,
     answerDay2Call,
     revealDay2CallText,
-    beginBoardEvening,
-    openBoardFromEvening,
-    dismissBoardEvening,
     removeNotebookEntry,
     addClueToBackpack,
     removeClueFromBackpack,
-    pinClueOnBoard,
-    moveBoardPin,
-    unpinClueFromBoard,
-    linkBoardPins,
-    unlinkBoardPins,
     readHubMessage,
     collectHubClue,
     advanceDay,
