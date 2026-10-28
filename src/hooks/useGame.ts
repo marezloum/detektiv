@@ -13,8 +13,7 @@ import type {
 } from '../types/game'
 import { getScenario, SCENARIO_LIST, DEFAULT_SCENARIO_ID } from '../data/scenarios'
 import { MAP_POINTS } from '../data/locations'
-import { preloadSceneImages, sceneImageUrl } from '../assets/scenes'
-import { playScene } from '../utils/playScene'
+import { preloadSceneImages } from '../assets/scenes'
 import { firstTalkableMuseumHall, museumHallForDialogue } from '../data/tretyakovHalls'
 import {
   firstTalkableTheaterRoom,
@@ -212,13 +211,12 @@ export function useGame() {
 
   const closePhone = () => setPhoneOpen(false)
 
-  const capturePhonePhoto = () => {
-    const shot = playScene(stateRef.current)
+  const capturePhonePhoto = (shot: { label: string; imageSrc: string }) => {
     const now = new Date()
     const photo: PhonePhoto = {
       id: `shot-${now.getTime()}`,
       label: shot.label,
-      imageSrc: sceneImageUrl(shot.sceneId),
+      imageSrc: shot.imageSrc,
       takenAtLabel: now.toLocaleString('ru-RU', {
         day: 'numeric',
         month: 'short',

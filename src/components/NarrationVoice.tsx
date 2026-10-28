@@ -28,6 +28,7 @@ export function NarrationVoice({
   const onEndedRef = useRef(onEnded)
   const [blocked, setBlocked] = useState(false)
   const [playing, setPlaying] = useState(false)
+  const [paused, setPaused] = useState(false)
 
   onEndedRef.current = onEnded
 
@@ -41,17 +42,27 @@ export function NarrationVoice({
     finishedRef.current = false
     setBlocked(false)
     setPlaying(false)
+    setPaused(false)
 
     const audio = audioRef.current
+    let cancelled = false
 
     if (audioSrc && audio) {
       audio.pause()
       audio.currentTime = 0
 
-      const onPlay = () => setPlaying(true)
-      const onPause = () => setPlaying(false)
+      const onPlay = () => {
+        setPlaying(true)
+        setPaused(false)
+        setBlocked(false)
+      }
+      const onPause = () => {
+        setPlaying(false)
+        if (!audio.ended) setPaused(true)
+      }
       const onAudioEnded = () => {
         setPlaying(false)
+        setPaused(false)
         finish()
       }
 
@@ -62,19 +73,24 @@ export function NarrationVoice({
       void audio
         .play()
         .then(() => {
+          if (cancelled) return
           setBlocked(false)
           setPlaying(true)
+          setPaused(false)
         })
         .catch(() => {
+          if (cancelled) return
           setBlocked(true)
           setPlaying(false)
+          setPaused(false)
         })
 
       return () => {
-        audio.pause()
+        cancelled = true
         audio.removeEventListener('play', onPlay)
         audio.removeEventListener('pause', onPause)
         audio.removeEventListener('ended', onAudioEnded)
+        audio.pause()
       }
     }
 
@@ -83,19 +99,28 @@ export function NarrationVoice({
       const utter = new SpeechSynthesisUtterance(text)
       utter.lang = 'ru-RU'
       utter.rate = 1
-      utter.onstart = () => setPlaying(true)
+      utter.onstart = () => {
+        if (cancelled) return
+        setPlaying(true)
+        setPaused(false)
+      }
       utter.onend = () => {
+        if (cancelled) return
         setPlaying(false)
+        setPaused(false)
         finish()
       }
       utter.onerror = () => {
+        if (cancelled) return
         setPlaying(false)
+        setPaused(false)
         setBlocked(true)
       }
       speechSynthesis.speak(utter)
       setPlaying(true)
 
       return () => {
+        cancelled = true
         speechSynthesis.cancel()
       }
     }
@@ -107,9 +132,11 @@ export function NarrationVoice({
   const handleStart = async () => {
     const audio = audioRef.current
     if (audioSrc && audio) {
+      if (audio.ended) audio.currentTime = 0
       try {
         await audio.play()
         setBlocked(false)
+        setPaused(false)
         setPlaying(true)
       } catch {
         setBlocked(true)
@@ -122,16 +149,50 @@ export function NarrationVoice({
       const utter = new SpeechSynthesisUtterance(text)
       utter.lang = 'ru-RU'
       utter.rate = 1
-      utter.onstart = () => setPlaying(true)
+      utter.onstart = () => {
+        setPlaying(true)
+        setPaused(false)
+      }
       utter.onend = () => {
         setPlaying(false)
+        setPaused(false)
         finish()
       }
       utter.onerror = () => setBlocked(true)
       speechSynthesis.speak(utter)
       setBlocked(false)
+      setPaused(false)
       setPlaying(true)
     }
+  }
+
+  const togglePlayback = () => {
+    const audio = audioRef.current
+    if (audioSrc && audio) {
+      if (!audio.paused && !audio.ended) {
+        audio.pause()
+        return
+      }
+      void handleStart()
+      return
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      if (speechSynthesis.speaking && !speechSynthesis.paused) {
+        speechSynthesis.pause()
+        setPlaying(false)
+        setPaused(true)
+        return
+      }
+      if (speechSynthesis.paused) {
+        speechSynthesis.resume()
+        setPlaying(true)
+        setPaused(false)
+        return
+      }
+    }
+
+    void handleStart()
   }
 
   const handleSkip = () => {
@@ -165,17 +226,32 @@ export function NarrationVoice({
             <span>Слушать</span>
           </button>
         ) : (
-          <div className={`narration-voice-listening ${playing ? 'is-playing' : ''}`}>
-            <span className="narration-voice-bars" aria-hidden>
-              <i />
-              <i />
-              <i />
-              <i />
+          <button
+            type="button"
+            className={`narration-voice-listening ${playing ? 'is-playing' : ''}`}
+            onClick={togglePlayback}
+            aria-label={playing ? 'Пауза' : paused ? 'Продолжить' : 'Слушать'}
+            title={playing ? 'Пауза' : paused ? 'Продолжить' : 'Слушать'}
+          >
+            <span className="narration-voice-toggle-icon" aria-hidden>
+              {playing ? (
+                <span className="narration-voice-pause-glyph" />
+              ) : (
+                <span className="narration-voice-play-glyph" />
+              )}
             </span>
-            <span className="narration-voice-label">
-              {playing ? 'Рассказчик…' : 'Готово'}
+            <span className="narration-voice-listening-copy">
+              <span className="narration-voice-bars" aria-hidden>
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="narration-voice-label">
+                {playing ? 'Рассказчик…' : paused ? 'Пауза' : 'Готово'}
+              </span>
             </span>
-          </div>
+          </button>
         )}
       </div>
 

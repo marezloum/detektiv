@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { sceneImageUrl } from '../assets/scenes'
 import { useGameContext } from '../context/GameContext'
+import { shotsForScene } from '../data/cameraShots'
 import type { DetectivePhoneScreen } from '../hooks/useGame'
 import type { PhonePhoto } from '../types/game'
 import { playScene } from '../utils/playScene'
@@ -57,6 +57,11 @@ export function DetectivePhone() {
   const [screen, setScreen] = useState<DetectivePhoneScreen>(phoneEntry)
   const [flash, setFlash] = useState(false)
   const [viewerId, setViewerId] = useState<string | null>(null)
+  const [shotId, setShotId] = useState<string | null>(null)
+
+  const place = playScene(state)
+  const shots = shotsForScene(place.sceneId, place.label)
+  const shot = shots.find((item) => item.id === shotId) ?? shots[0]
 
   useEffect(() => {
     if (!phoneOpen) return
@@ -64,10 +69,13 @@ export function DetectivePhone() {
     setViewerId(null)
   }, [phoneOpen, phoneEntry])
 
+  useEffect(() => {
+    setShotId(null)
+  }, [place.sceneId])
+
   if (!phoneOpen) return null
 
   const photos = state.phonePhotos ?? []
-  const place = playScene(state)
   const messageReady = hasPendingOpeningSms && openingMessageReady
   const dutyKnown =
     scenario.id === 'stolen-painting' &&
@@ -81,9 +89,9 @@ export function DetectivePhone() {
   })
 
   const shoot = () => {
-    if (flash) return
+    if (flash || !shot) return
     setFlash(true)
-    capturePhonePhoto()
+    capturePhonePhoto(shot)
     window.setTimeout(() => setFlash(false), 320)
   }
 
@@ -167,7 +175,7 @@ export function DetectivePhone() {
                     <span>Галерея</span>
                   </button>
                 </div>
-                <p className="dphone-home-hint">Камера снимает место, где вы стоите.</p>
+                <p className="dphone-home-hint">Камера снимает то, что выбрано для этого места.</p>
               </div>
             )}
 
@@ -208,19 +216,39 @@ export function DetectivePhone() {
               </div>
             )}
 
-            {screen === 'camera' && (
+            {screen === 'camera' && shot && (
               <div className="dphone-cam">
                 <img
                   className="dphone-viewfinder"
-                  src={sceneImageUrl(place.sceneId)}
+                  src={shot.imageSrc}
                   alt=""
                 />
                 <div className="dphone-cam-top">
                   <button type="button" className="dphone-back dphone-back--light" onClick={() => setScreen('home')}>
                     ←
                   </button>
-                  <span>{place.label}</span>
+                  <span>{shot.label}</span>
                 </div>
+                {shots.length > 1 && (
+                  <div className="dphone-cam-subjects" role="tablist" aria-label="Что снимать">
+                    {shots.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={item.id === shot.id}
+                        className={
+                          item.id === shot.id
+                            ? 'dphone-cam-subject dphone-cam-subject--on'
+                            : 'dphone-cam-subject'
+                        }
+                        onClick={() => setShotId(item.id)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {flash && <div className="dphone-flash" aria-hidden />}
                 <div className="dphone-cam-bar">
                   <button
