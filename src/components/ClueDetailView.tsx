@@ -75,37 +75,43 @@ export function ClueDetailView({ clue, onClose }: ClueDetailViewProps) {
 
       <div className="clue-detail-stage">
         {detail.type === 'phone' && detail.phone && (
-          <div className="clue-phone">
-            <div className="clue-phone__device" aria-hidden>
-              <div className="clue-phone__notch" />
-              <div className="clue-phone__screen-label">Журнал</div>
-            </div>
-            <div className="clue-phone__log">
-              <p className="clue-detail-subtitle">Последние 10 звонков</p>
-              <ul className="phone-call-list">
-                {detail.phone.calls.map((call, idx) => (
-                  <li key={idx} className={`phone-call phone-call--${call.direction}`}>
+          <div className="clue-phone" aria-label="Журнал звонков">
+            <p className="clue-detail-subtitle">Последние 10 звонков</p>
+            <ul className="phone-call-list">
+              {detail.phone.calls.map((call, idx) => (
+                <li
+                  key={idx}
+                  className={`phone-call phone-call--${call.direction}`}
+                >
+                  <div className="phone-call-avatar" aria-hidden>
+                    {(call.contactName ?? call.number).slice(0, 1)}
+                  </div>
+                  <div className="phone-call-body">
                     <div className="phone-call-top">
                       <span className="phone-call-name">
                         {call.contactName ?? call.number}
                       </span>
                       <span className="phone-call-time">{call.time}</span>
                     </div>
-                    {call.contactName && (
-                      <span className="phone-call-number">{call.number}</span>
-                    )}
-                    <span className={`phone-call-badge phone-call-badge--${call.direction}`}>
-                      {call.direction === 'incoming'
-                        ? 'входящий'
-                        : call.direction === 'outgoing'
-                          ? 'исходящий'
-                          : 'пропущенный'}
-                    </span>
-                    <span className="phone-call-meta">{call.date}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                    <div className="phone-call-sub">
+                      <span
+                        className={`phone-call-badge phone-call-badge--${call.direction}`}
+                      >
+                        {call.direction === 'incoming'
+                          ? 'входящий'
+                          : call.direction === 'outgoing'
+                            ? 'исходящий'
+                            : 'пропущенный'}
+                      </span>
+                      {call.contactName && (
+                        <span className="phone-call-number">{call.number}</span>
+                      )}
+                      <span className="phone-call-meta">{call.date}</span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

@@ -1,6 +1,5 @@
 import { GameProvider, useGameContext } from './context/GameContext'
 import { CoverScreen } from './components/CoverScreen'
-import { GameHall } from './components/GameHall'
 import { RulesScreen } from './components/RulesScreen'
 import { DetectiveHub } from './components/DetectiveHub'
 import { LocationView } from './components/LocationView'
@@ -18,9 +17,8 @@ function GameRouter() {
 
   switch (state.phase) {
     case 'cover':
-      return <CoverScreen />
     case 'hall':
-      return <GameHall />
+      return <CoverScreen />
     case 'rules':
       return <RulesScreen />
     case 'hub':

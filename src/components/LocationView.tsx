@@ -4,6 +4,8 @@ import { BackButton } from './BackButton'
 import { GameTimer } from './GameTimer'
 import { GameLogo } from './GameLogo'
 import { SiteRoomNav } from './GalleryHallNav'
+import { HintScrap } from './HintScrap'
+import { asset } from '../utils/asset'
 import { LOCATIONS } from '../data/locations'
 import {
   DEFAULT_MUSEUM_HALL,
@@ -58,6 +60,7 @@ export function LocationView() {
   const isHotel =
     state.currentLocationId === 'hotel' && scenario.id === 'stolen-painting'
   const isSite = isGallery || isTheater
+  const isDossier = isForensic || isGallery || isTheater
 
   const currentHall = isGallery
     ? getTretyakovHall(state.currentMuseumHallId ?? DEFAULT_MUSEUM_HALL)
@@ -180,6 +183,7 @@ export function LocationView() {
       className={[
         'screen',
         'location-screen',
+        isDossier ? 'location-screen--forensic' : '',
         isGallery ? 'location-screen--gallery' : '',
         isTheater ? 'location-screen--theater' : '',
         isHotel ? 'location-screen--hotel' : '',
@@ -244,9 +248,12 @@ export function LocationView() {
         />
       )}
 
-      <div className={isForensic ? 'location-dock location-dock--boxed' : 'location-dock'}>
-        {isForensic && <GameLogo size="sm" className="location-dock-logo" />}
-        <div className={isForensic ? 'location-dock-box' : 'location-dock-plain'}>
+      <div className={isDossier ? 'location-dock location-dock--boxed' : 'location-dock'}>
+        <div className={isDossier ? 'location-dock-box' : 'location-dock-plain'}>
+        {isDossier && <GameLogo size="sm" className="location-dock-logo" />}
+        {isGallery && currentHall && (
+          <p className="location-site-note">{currentHall.culturalNote}</p>
+        )}
         {isHotel && hotelDialoguesHere.length > 0 && (
           <NpcCard name={currentLocation.npc.name} role={currentLocation.npc.role} />
         )}
@@ -296,7 +303,17 @@ export function LocationView() {
                 className="btn btn-primary"
                 onClick={() => startDialogue(siteDialogueIndex)}
               >
-                {getDialogueLabel(scenario, currentLocation.locationId, siteDialogueIndex)}
+                {isDossier && (
+                  <img
+                    src={asset('/images/ui/paperclip.svg')}
+                    alt=""
+                    className="locker-paperclip"
+                    aria-hidden
+                  />
+                )}
+                <span>
+                  {getDialogueLabel(scenario, currentLocation.locationId, siteDialogueIndex)}
+                </span>
               </button>
             ) : otherTalkHalls.length > 0 ? (
               <>
@@ -339,26 +356,39 @@ export function LocationView() {
                 className="btn btn-primary"
                 onClick={() => startDialogue(idx)}
               >
-                {getDialogueLabel(scenario, currentLocation.locationId, idx)}
+                {isDossier && (
+                  <img
+                    src={asset('/images/ui/paperclip.svg')}
+                    alt=""
+                    className="locker-paperclip"
+                    aria-hidden
+                  />
+                )}
+                <span>{getDialogueLabel(scenario, currentLocation.locationId, idx)}</span>
               </button>
             ))
           ) : (
             <p className="dialogue-done-msg">✓ Это место уже осмотрено.</p>
           )}
-          <button type="button" className="btn btn-hint" onClick={requestHint}>
-            Подсказка (+{HINT_PENALTY_SECONDS} сек)
-          </button>
+          <span className="hint-tape-wrap">
+            <img
+              src={asset('/images/ui/magnifier.svg')}
+              alt=""
+              className="hint-tape-magnifier"
+              aria-hidden
+            />
+            <button type="button" className="hint-tape-btn" onClick={requestHint}>
+              <span>
+                Подсказка <em>(+{HINT_PENALTY_SECONDS} сек)</em>
+              </span>
+            </button>
+          </span>
         </div>
         </div>
       </div>
 
       {state.showHint && state.currentHint && (
-        <div className="hint-toast">
-          <p>{state.currentHint}</p>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={dismissHint}>
-            Понятно
-          </button>
-        </div>
+        <HintScrap text={state.currentHint} onDismiss={dismissHint} />
       )}
     </div>
   )

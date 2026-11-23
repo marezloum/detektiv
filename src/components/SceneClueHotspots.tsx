@@ -1,6 +1,7 @@
 import type { Clue } from '../types/game'
 import { iconKindFromClue } from './ClueIcon'
 import { HomeAppIcon } from './HomeAppIcon'
+import { flyToBackpack } from '../utils/flyToBackpack'
 
 function clueImage(clue: Clue): string | undefined {
   const detail = clue.detail
@@ -54,7 +55,14 @@ export function SceneClueHotspots({
               title={taken ? `Убрать: ${clue.title}` : `Осмотреть: ${clue.title}`}
               aria-label={taken ? `Убрать: ${clue.title}` : `Осмотреть: ${clue.title}`}
               aria-pressed={taken}
-              onClick={() => (taken ? onRemoveClue(clue.id) : onAddClue(clue.id))}
+              onClick={(event) => {
+                if (taken) {
+                  onRemoveClue(clue.id)
+                  return
+                }
+                void flyToBackpack(event.currentTarget)
+                onAddClue(clue.id)
+              }}
             >
               <span className="scene-hotspot-dot" aria-hidden />
               <span className="scene-hotspot-label">{clue.title}</span>
@@ -88,9 +96,14 @@ export function SceneClueHotspots({
                 collectedItem ? `Убрать из рюкзака: ${clue.title}` : `Забрать: ${clue.title}`
               }
               aria-pressed={collectedItem}
-              onClick={() =>
-                collectedItem ? onRemoveClue(clue.id) : onAddClue(clue.id)
-              }
+              onClick={(event) => {
+                if (collectedItem) {
+                  onRemoveClue(clue.id)
+                  return
+                }
+                void flyToBackpack(event.currentTarget)
+                onAddClue(clue.id)
+              }}
             >
               <span className="home-app__glyph">
                 <span className="home-app__icon">

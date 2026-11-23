@@ -1,25 +1,22 @@
 import { useEffect, useState } from 'react'
+import { asset } from '../utils/asset'
 
 interface DeskPhonesProps {
   mobileHasSms: boolean
   mobileVibrating: boolean
+  mobileRinging?: boolean
+  mobileOutgoing?: boolean
   mobileActive: boolean
   onMobileClick: () => void
-  landlineRinging?: boolean
-  landlineOutgoing?: boolean
-  landlineActive?: boolean
-  onLandlineClick?: () => void
 }
 
 export function DeskPhones({
   mobileHasSms,
   mobileVibrating,
+  mobileRinging = false,
+  mobileOutgoing = false,
   mobileActive,
   onMobileClick,
-  landlineRinging = false,
-  landlineOutgoing = false,
-  landlineActive = false,
-  onLandlineClick,
 }: DeskPhonesProps) {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -33,65 +30,47 @@ export function DeskPhones({
     month: 'long',
   })
 
-  return (
-    <div className="hub-desk-phones" aria-label="Телефоны на столе">
-      <button
-        type="button"
-        className={[
-          'desk-phone',
-          'desk-phone--landline',
-          landlineRinging ? 'desk-phone--landline-ring' : '',
-          landlineOutgoing ? 'desk-phone--landline-out' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        onClick={onLandlineClick}
-        disabled={!landlineActive}
-        title={
-          landlineRinging
-            ? 'Входящий звонок — снимите трубку'
-            : landlineOutgoing
-              ? 'Позвонить в полицию аэропорта'
-              : 'Городской телефон с диском'
-        }
-        aria-label={
-          landlineRinging
-            ? 'Городской телефон — входящий звонок от директора'
-            : landlineOutgoing
-              ? 'Городской телефон — позвонить в аэропорт'
-              : 'Городской телефон на столе'
-        }
-      >
-        <div className="landline-phone" aria-hidden>
-          <div className="landline-phone-handset" />
-          <div className="landline-phone-base">
-            <div className="landline-phone-dial" />
-          </div>
-        </div>
-        <span className="desk-phone-label">
-          {landlineRinging
-            ? 'Городской — звонит!'
-            : landlineOutgoing
-              ? 'Городской — позвонить'
-              : 'Городской'}
-        </span>
-      </button>
+  const mobileLabel = mobileRinging
+    ? 'Входящий звонок'
+    : mobileOutgoing
+      ? 'Позвонить'
+      : mobileHasSms
+        ? 'Новое сообщение'
+        : 'Смартфон'
 
+  return (
+    <div className="hub-desk-phones" aria-label="Смартфон на столе">
       <button
         type="button"
         className={[
           'desk-phone',
           'desk-phone--mobile',
           mobileHasSms ? 'desk-phone--mobile-alert' : '',
-          mobileVibrating ? 'desk-phone--mobile-vibrate' : '',
+          mobileVibrating || mobileRinging ? 'desk-phone--mobile-vibrate' : '',
+          mobileRinging ? 'desk-phone--mobile-ring' : '',
+          mobileOutgoing ? 'desk-phone--mobile-out' : '',
         ]
           .filter(Boolean)
           .join(' ')}
         onClick={onMobileClick}
         disabled={!mobileActive}
-        title={mobileHasSms ? 'Новое сообщение — нажмите' : 'Смартфон'}
+        title={
+          mobileRinging
+            ? 'Входящий звонок — ответьте'
+            : mobileOutgoing
+              ? 'Позвонить в полицию аэропорта'
+              : mobileHasSms
+                ? 'Новое сообщение — нажмите'
+                : 'Смартфон'
+        }
         aria-label={
-          mobileHasSms ? 'Смартфон — новое сообщение' : 'Смартфон на столе'
+          mobileRinging
+            ? 'Смартфон — входящий звонок'
+            : mobileOutgoing
+              ? 'Смартфон — позвонить в аэропорт'
+              : mobileHasSms
+                ? 'Смартфон — новое сообщение'
+                : 'Смартфон на столе'
         }
       >
         <span className="desk-phone-scale" aria-hidden>
@@ -118,7 +97,31 @@ export function DeskPhones({
                 <span className="dphone-lock">
                   <span className="dphone-lock-time">{time}</span>
                   <span className="dphone-lock-date">{dateLabel}</span>
-                  {mobileHasSms ? (
+                  {mobileRinging ? (
+                    <span className="dphone-note dphone-note--call">
+                      <span className="dphone-app-icon dphone-app-icon--call" />
+                      <span className="dphone-note-copy">
+                        <span className="dphone-note-top">
+                          <strong>Входящий</strong>
+                          <span>сейчас</span>
+                        </span>
+                        <span className="dphone-note-name">Директор ГТГ</span>
+                        <span className="dphone-note-preview">Нажмите, чтобы ответить</span>
+                      </span>
+                    </span>
+                  ) : mobileOutgoing ? (
+                    <span className="dphone-note dphone-note--call">
+                      <span className="dphone-app-icon dphone-app-icon--call" />
+                      <span className="dphone-note-copy">
+                        <span className="dphone-note-top">
+                          <strong>Вызов</strong>
+                          <span>готово</span>
+                        </span>
+                        <span className="dphone-note-name">Шереметьево</span>
+                        <span className="dphone-note-preview">Позвонить в полицию аэропорта</span>
+                      </span>
+                    </span>
+                  ) : mobileHasSms ? (
                     <span className="dphone-note">
                       <span className="dphone-app-icon dphone-app-icon--msg" />
                       <span className="dphone-note-copy">
@@ -142,7 +145,13 @@ export function DeskPhones({
           </span>
         </span>
         <span className="desk-phone-label">
-          {mobileHasSms ? 'Новое сообщение' : 'Смартфон'}
+          <img
+            src={asset('/images/ui/paperclip.svg')}
+            alt=""
+            className="locker-paperclip desk-phone-clip"
+            aria-hidden
+          />
+          <span>{mobileLabel}</span>
         </span>
       </button>
     </div>

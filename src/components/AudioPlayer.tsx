@@ -50,18 +50,13 @@ function GrungeMeter({
   )
 }
 
-function createAudioContext() {
-  const Ctx =
-    window.AudioContext ||
-    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-  return Ctx ? new Ctx() : null
-}
-
 interface AudioPlayerProps {
   src: string
   label?: string
   compact?: boolean
   grunge?: boolean
+  /** Start playback as soon as the element can play (browser may still block until a click) */
+  autoPlay?: boolean
 }
 
 export function AudioPlayer({
@@ -69,42 +64,16 @@ export function AudioPlayer({
   label = 'Прослушать',
   compact = false,
   grunge = false,
+  autoPlay = false,
 }: AudioPlayerProps) {
   const resolvedSrc = asset(src)
   const audioRef = useRef<HTMLAudioElement>(null)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const gainRef = useRef<GainNode | null>(null)
   const progressId = useId()
 
   const [playing, setPlaying] = useState(false)
   const [started, setStarted] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
-  const [volume, setVolume] = useState(1)
-
-  const applyVolume = (level: number) => {
-    const audio = audioRef.current
-    if (!audio) return
-    audio.playbackRate = 1
-
-    try {
-      if (!gainRef.current) {
-        const ctx = createAudioContext()
-        if (!ctx) throw new Error('AudioContext unavailable')
-        const source = ctx.createMediaElementSource(audio)
-        const gain = ctx.createGain()
-        source.connect(gain)
-        gain.connect(ctx.destination)
-        audioCtxRef.current = ctx
-        gainRef.current = gain
-      }
-      gainRef.current.gain.value = level
-      audio.volume = 1
-      void audioCtxRef.current?.resume()
-    } catch {
-      audio.volume = level
-    }
-  }
 
   useEffect(() => {
     const audio = audioRef.current
@@ -149,17 +118,33 @@ export function AudioPlayer({
   }, [resolvedSrc])
 
   useEffect(() => {
-    return () => {
-      void audioCtxRef.current?.close()
-      audioCtxRef.current = null
-      gainRef.current = null
+    if (!autoPlay) return
+    const audio = audioRef.current
+    if (!audio) return
+    audio.playbackRate = 1
+    const tryPlay = async () => {
+      try {
+        await audio.play()
+      } catch {
+        /* autoplay blocked — user can press play */
+      }
     }
-  }, [])
+    if (audio.readyState >= 2) {
+      void tryPlay()
+      return
+    }
+    const onReady = () => {
+      void tryPlay()
+      audio.removeEventListener('canplay', onReady)
+    }
+    audio.addEventListener('canplay', onReady)
+    return () => audio.removeEventListener('canplay', onReady)
+  }, [autoPlay, resolvedSrc])
 
   const togglePlay = async () => {
     const audio = audioRef.current
     if (!audio) return
-    applyVolume(volume)
+    audio.playbackRate = 1
 
     if (audio.paused) {
       try {
@@ -179,29 +164,8 @@ export function AudioPlayer({
     setCurrentTime(value)
   }
 
-  const handleVolume = (level: number) => {
-    setVolume(level)
-    applyVolume(level)
-  }
-
   const playIcon = playing ? '⏸' : started ? '▶' : '🔊'
   const playLabel = playing ? 'Пауза' : started ? 'Продолжить' : label
-
-  const volumeControl = (
-    <label className="audio-player-setting">
-      <span>Громкость</span>
-      <input
-        type="range"
-        className="audio-player-range audio-player-volume"
-        min={0}
-        max={1}
-        step={0.05}
-        value={volume}
-        onChange={(e) => handleVolume(Number(e.target.value))}
-        aria-label="Громкость"
-      />
-    </label>
-  )
 
   if (compact) {
     return (
@@ -232,7 +196,6 @@ export function AudioPlayer({
             {formatAudioTime(currentTime)} / {formatAudioTime(duration)}
           </span>
         </div>
-        {volumeControl}
       </div>
     )
   }
@@ -273,20 +236,6 @@ export function AudioPlayer({
           aria-label="Позиция воспроизведения"
         />
       )}
-      <div className="audio-player-settings">
-        {grunge ? (
-          <GrungeMeter
-            label="Громкость"
-            max={1}
-            step={0.05}
-            value={volume}
-            onChange={handleVolume}
-            ariaLabel="Громкость"
-          />
-        ) : (
-          volumeControl
-        )}
-      </div>
     </div>
   )
 }

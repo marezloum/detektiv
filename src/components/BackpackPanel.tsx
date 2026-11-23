@@ -1,72 +1,155 @@
 import { useState } from 'react'
 import { useGameContext } from '../context/GameContext'
-import { OverlayPanelHeader } from './ScreenTopBar'
 import { ClueDetailView } from './ClueDetailView'
-import { ClueIcon, iconKindFromClue } from './ClueIcon'
+import { iconKindFromClue } from './ClueIcon'
+import { HomeAppIcon } from './HomeAppIcon'
+import { asset } from '../utils/asset'
+import type { Clue } from '../types/game'
+
+function clueImage(clue: Clue): string | undefined {
+  const detail = clue.detail
+  if (!detail) return undefined
+  if (detail.type === 'photo') return detail.photo?.imageSrc
+  if (detail.type === 'postcard') return detail.postcard?.imageSrc
+  if (detail.type === 'object') return detail.object?.imageSrc
+  return undefined
+}
 
 export function BackpackPanel() {
   const { state, removeClueFromBackpack, goBack } = useGameContext()
-  const [selectedClueId, setSelectedClueId] = useState<string | null>(null)
+  const [focusedClueId, setFocusedClueId] = useState<string | null>(null)
+  const [inspecting, setInspecting] = useState(false)
 
-  const selectedClue = state.backpack.find((c) => c.id === selectedClueId)
+  const focusedClue =
+    state.backpack.find((c) => c.id === focusedClueId) ?? state.backpack[0] ?? null
+
+  const showDetail = inspecting && focusedClue?.detail
 
   return (
     <div className="overlay-panel backpack-panel">
-      <OverlayPanelHeader
-        title={selectedClue ? 'Осмотр улики' : 'Рюкзак — улики'}
-        onBack={selectedClue ? () => setSelectedClueId(null) : goBack}
-      />
-      {selectedClue ? (
-        <ClueDetailView clue={selectedClue} onClose={() => setSelectedClueId(null)} />
-      ) : (
-        <div className="inventory-list">
-          {state.backpack.length === 0 ? (
+      <div className="backpack-folder" role="dialog" aria-labelledby="backpack-title">
+        <div className="backpack-folder-tabs">
+          <button
+            type="button"
+            className="backpack-folder-tab backpack-folder-tab--back"
+            onClick={() => {
+              if (showDetail) {
+                setInspecting(false)
+                return
+              }
+              goBack()
+            }}
+            aria-label={showDetail ? 'К уликам' : 'Назад'}
+          >
+            ← {showDetail ? 'К уликам' : 'Назад'}
+          </button>
+          <h2 id="backpack-title" className="backpack-folder-tab backpack-folder-tab--title">
+            {showDetail ? 'Осмотр улики' : 'Рюкзак — улики'}
+          </h2>
+        </div>
+
+        <div className="backpack-folder-frame">
+          {showDetail && focusedClue ? (
+            <ClueDetailView clue={focusedClue} onClose={() => setInspecting(false)} />
+          ) : state.backpack.length === 0 ? (
             <p className="empty-msg">Вы ещё не собрали улик.</p>
           ) : (
-            state.backpack.map((clue) => (
-              <article
-                key={clue.id}
-                className={`clue-card ${clue.detail ? 'clue-card--interactive' : ''}`}
-              >
-                <div className="inventory-card-header">
-                  <div className="clue-card-title-row">
-                    <ClueIcon
-                      kind={iconKindFromClue(clue)}
-                      postcardHint={clue.detail?.postcard?.paintingTitle ?? clue.title}
-                      className="clue-icon--in-card"
-                    />
-                    <h4>{clue.title}</h4>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-collect btn-collect-remove inventory-remove-btn"
-                    onClick={() => removeClueFromBackpack(clue.id)}
-                    aria-label={`Удалить: ${clue.title}`}
-                    title="Удалить"
-                  >
-                    −
-                  </button>
+            <div className="backpack-stage">
+              <div className="backpack-evidence" aria-label="Улики в рюкзаке">
+                <p className="backpack-folder-kicker">
+                  Вещественные доказательства · {state.backpack.length}
+                </p>
+                <div className="backpack-evidence-grid">
+                  {state.backpack.map((clue, index) => {
+                    const active = focusedClue?.id === clue.id
+                    return (
+                      <button
+                        key={clue.id}
+                        type="button"
+                        className={[
+                          'backpack-evidence-chip',
+                          active ? 'is-active' : '',
+                          index % 3 === 0
+                            ? 'is-tilt-a'
+                            : index % 3 === 1
+                              ? 'is-tilt-b'
+                              : 'is-tilt-c',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        aria-pressed={active}
+                        onClick={() => {
+                          setFocusedClueId(clue.id)
+                          setInspecting(false)
+                        }}
+                      >
+                        <span className="home-app__glyph">
+                          <span className="home-app__icon">
+                            <HomeAppIcon
+                              kind={iconKindFromClue(clue)}
+                              postcardHint={
+                                clue.detail?.postcard?.paintingTitle ?? clue.title
+                              }
+                              imageSrc={clueImage(clue)}
+                            />
+                          </span>
+                        </span>
+                        <span className="backpack-evidence-label">{clue.title}</span>
+                      </button>
+                    )
+                  })}
                 </div>
-                <p>{clue.description}</p>
-                <div className="clue-card-meta">
-                  {clue.detail && (
+              </div>
+
+              {focusedClue && (
+                <div className="backpack-dock">
+                  <img
+                    src={asset('/images/ui/paperclip.svg')}
+                    alt=""
+                    className="locker-paperclip backpack-dock-clip"
+                    aria-hidden
+                  />
+                  <p className="backpack-dock-eyebrow">Улика</p>
+                  <h3 className="backpack-dock-title">{focusedClue.title}</h3>
+                  <p className="backpack-dock-desc">{focusedClue.description}</p>
+                  <div className="backpack-dock-actions">
+                    {focusedClue.detail && (
+                      <button
+                        type="button"
+                        className="clue-inspect-btn"
+                        onClick={() => setInspecting(true)}
+                      >
+                        Осмотреть
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className="btn btn-secondary btn-sm clue-inspect-btn"
-                      onClick={() => setSelectedClueId(clue.id)}
+                      className="backpack-dock-remove"
+                      onClick={() => {
+                        const id = focusedClue.id
+                        removeClueFromBackpack(id)
+                        setFocusedClueId((current) => {
+                          if (current !== id) return current
+                          const next = state.backpack.find((c) => c.id !== id)
+                          return next?.id ?? null
+                        })
+                        setInspecting(false)
+                      }}
                     >
-                      Осмотреть
+                      Убрать
                     </button>
-                  )}
-                  {clue.discoveredAt !== undefined && (
-                    <span className="clue-time">Найдено на {clue.discoveredAt} сек.</span>
-                  )}
+                    {focusedClue.discoveredAt !== undefined && (
+                      <span className="clue-time">
+                        Найдено на {focusedClue.discoveredAt} сек.
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </article>
-            ))
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

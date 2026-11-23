@@ -48,9 +48,8 @@ export const LOCATIONS: Record<string, LocationMeta> = {
     id: 'museum',
     name: 'Третьяковская галерея',
     description:
-      'Замоскворечье, ЦАО. Главный музей русского искусства. ' +
-      'Осмотрите вестибюль и залы 20, 30 и 38 — у каждого своя картина и своя история.',
-    imageKey: 'museum-lobby',
+      'Замоскворечье, ЦАО. Вход — через вестибюль: оттуда в кабинет директора и залы 20, 30 и 38.',
+    imageKey: 'museum',
   },
   theater: {
     id: 'theater',

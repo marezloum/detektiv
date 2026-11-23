@@ -14,7 +14,11 @@ import type {
 import { getScenario, SCENARIO_LIST, DEFAULT_SCENARIO_ID } from '../data/scenarios'
 import { MAP_POINTS } from '../data/locations'
 import { preloadSceneImages } from '../assets/scenes'
-import { firstTalkableMuseumHall, museumHallForDialogue } from '../data/tretyakovHalls'
+import {
+  firstTalkableMuseumHall,
+  museumHallForDialogue,
+  museumHallOnEnter,
+} from '../data/tretyakovHalls'
 import {
   firstTalkableTheaterRoom,
   theaterRoomForDialogue,
@@ -32,8 +36,10 @@ import {
   hasPendingDay2Call,
   hasPendingAirportCall,
   hasPendingDirectorCall,
+  hasPendingPhoneMatch,
   isLocationCleared,
 } from '../utils/scenarioProgress'
+import { PHONE_MATCH_PUZZLE } from '../data/hubCalls'
 
 const HINT_PENALTY_SECONDS = 10
 
@@ -44,7 +50,7 @@ const HINTS: Partial<Record<LocationId, string>> = {
   forensic: 'Срочное сообщение — отправляйтесь в морг (судмедэкспертиза).',
   museum: 'В Третьяковке: кабинет директора, затем залы 20, 30 и 38 — у каждого свой специалист.',
   theater: 'В Большом: буфет, затем гардероб, затем охрана у входа.',
-    hotel: 'Гостиница «Националь» — такси отеля два часа стояло у Большого.',
+    hotel: 'Гостиница «Националь» — такси отеля увезло женщину с футляром от Большого.',
     airport: 'Шереметьево — полиция аэропорта. Нужен звонок из кабинета.',
   'police-station': 'Начните с управления полиции — свидетель что-то видел.',
   'public-cultural': 'Художник находится на площади.',
@@ -76,6 +82,7 @@ function createInitialState(scenarioId: string) {
     showHint: false,
     currentHint: null as string | null,
     revealedDirectorPhones: new Set<string>(),
+    phoneMatchSolved: false,
     revealedDay2CallText: false,
     presentedLineKeys: new Set<string>(),
     phonePhotos: [] as PhonePhoto[],
@@ -247,7 +254,7 @@ export function useGame() {
     } else if (state.currentLocationId === 'hotel' && done.has('hotel-2') && !done.has('hotel-3')) {
       hint = 'Верещагина уехала. Осмотрите её номер.'
     } else if (hasPendingAirportCall(state)) {
-      hint = 'В кабинете — городской телефон. Позвоните в полицию Шереметьева.'
+      hint = 'В кабинете — смартфон. Позвоните в полицию Шереметьева.'
     } else if (state.currentLocationId === 'airport' && done.has('airport-0') && !done.has('airport-1')) {
       hint = 'Гипс слишком новый. В отеле она ходила сама, без хромоты.'
     }
@@ -301,7 +308,7 @@ export function useGame() {
         hint = 'Сначала расспросите охрану в Большом театре.'
       } else if (locationId === 'airport') {
         hint = hasPendingAirportCall(state)
-          ? 'Сначала позвоните в полицию аэропорта с городского телефона в кабинете.'
+          ? 'Сначала позвоните в полицию аэропорта со смартфона в кабинете.'
           : 'Сначала осмотрите номер в «Национале» и позвоните из кабинета.'
       }
     }
@@ -319,7 +326,7 @@ export function useGame() {
         case 'hall':
           return { ...s, phase: 'cover' }
         case 'rules':
-          return { ...s, phase: 'hall' }
+          return { ...s, phase: 'cover' }
         case 'location':
           return {
             ...s,
@@ -367,8 +374,7 @@ export function useGame() {
       let theaterRoom: TheaterRoomId | null = null
       let hotelRoom: HotelRoomId | null = null
       if (locationId === 'museum') {
-        const available = getAvailableDialogues(scenario, 'museum', s)
-        museumHall = firstTalkableMuseumHall(available)
+        museumHall = museumHallOnEnter(s.completedDialogues)
       }
       if (locationId === 'theater') {
         const available = getAvailableDialogues(scenario, 'theater', s)
@@ -500,15 +506,17 @@ export function useGame() {
             ...updates,
             backpack,
             showHint: true,
-            currentHint: 'На карте открыты Третьяковка (А3) и Большой театр (А4). Фото — в рюкзаке.',
+            currentHint:
+              'На карте открыты Третьяковка (А3) и Большой театр (А4). Фото — в рюкзаке.',
           }
         }
 
-        // После разговора в ГТГ остаёмся в галерее и переходим к следующему залу с меткой
+        // После разговора в ГТГ: директор → вестибюль → залы
         if (dialogueKey.startsWith('museum-')) {
           const nextState = { ...s, ...progress }
           const available = getAvailableDialogues(scenario, 'museum', nextState)
-          const nextHall = firstTalkableMuseumHall(available)
+          const nextHall =
+            dialogueKey === 'museum-0' ? 'lobby' : firstTalkableMuseumHall(available)
           updates = {
             ...updates,
             phase: 'location',
@@ -519,7 +527,7 @@ export function useGame() {
               ...updates,
               showHint: true,
               currentHint:
-                'Подойдите к специалистам в залах 20, 30 и 38 — в каждом зале свой разговор.',
+                'Вестибюль — ваш хаб. Пройдите в залы 20, 30 и 38 — в каждом свой разговор.',
             }
           }
         }
@@ -537,21 +545,27 @@ export function useGame() {
             updates = {
               ...updates,
               showHint: true,
-              currentHint: 'Буфетчица не была на смене. Спросите в гардеробе.',
+              currentHint: 'В буфете лиц не помнят. Спросите в гардеробе.',
             }
           }
           if (dialogueKey === 'theater-1') {
             updates = {
               ...updates,
               showHint: true,
-              currentHint: 'Покажите фото охране у входа.',
+              currentHint: 'Футляр пропал после спектакля. Спросите охранника у входа.',
             }
           }
           if (dialogueKey === 'theater-2') {
             updates = {
               ...updates,
+              phase: 'hub',
+              currentLocationId: null,
+              currentTheaterRoomId: null,
+              gameDay: Math.max(s.gameDay, 2),
+              revealedDay2CallText: false,
               showHint: true,
-              currentHint: 'Такси «Националя». Откройте карту — точка А5.',
+              currentHint:
+                'Вы вернулись в кабинет. Смартфон — срочный звонок директора ГТГ.',
             }
           }
         }
@@ -590,7 +604,7 @@ export function useGame() {
             updates = {
               ...updates,
               showHint: true,
-              currentHint: 'Вернитесь в кабинет — городским телефоном предупредите аэропорт.',
+              currentHint: 'Вернитесь в кабинет — со смартфона предупредите аэропорт.',
             }
           }
         }
@@ -884,7 +898,42 @@ export function useGame() {
     })
   }
 
-  /** Снять трубку: принять голосовое директора в рюкзак и отметить звонок */
+  /** Загадка после звонка: чей номер совпал с журналом телефона погибшего */
+  const answerPhoneMatch = (optionId: string): boolean => {
+    const option = PHONE_MATCH_PUZZLE.options.find((o) => o.id === optionId)
+    if (!option) return false
+    if (!('correct' in option) || !option.correct) return false
+
+    setState((s) => {
+      if (s.phoneMatchSolved) return s
+      const note = PHONE_MATCH_PUZZLE.notebookNote
+      const hasNote = s.notebook.some((n) => n.id === note.id)
+      const notebook = hasNote
+        ? s.notebook
+        : [
+            ...s.notebook,
+            {
+              id: note.id,
+              title: note.title,
+              content: note.content,
+              motionVerbs: [],
+              autoAdded: true,
+            },
+          ]
+      return {
+        ...s,
+        phoneMatchSolved: true,
+        notebook,
+        showHint: true,
+        currentHint:
+          'Совпадение найдено — нить к Петру Сергееву. Когда опросите всех специалистов, можно закончить день.',
+      }
+    })
+    notifySaved('notebook')
+    return true
+  }
+
+  /** Ответить на звонок директора: принять запись в рюкзак и отметить */
   const answerDirectorCall = () => {
     setState((s) => {
       const completedDialogues = new Set([...s.completedDialogues, 'director-call-0'])
@@ -908,7 +957,7 @@ export function useGame() {
     notifySaved('backpack')
   }
 
-  /** Утро дня 2: снять трубку городского — urgency, без SMS */
+  /** Утро дня 2: ответить на срочный звонок на смартфоне — без SMS */
   const answerDay2Call = () => {
     setState((s) => ({
       ...s,
@@ -965,13 +1014,18 @@ export function useGame() {
 
   const advanceDay = () => {
     if (!canAdvanceDay(state)) return
-    setState((s) => ({
-      ...s,
-      gameDay: 2,
-      revealedDay2CallText: false,
-      showHint: true,
-      currentHint: 'Начался второй день. Скоро зазвонит городской телефон.',
-    }))
+    setState((s) => {
+      const theaterDone = s.completedDialogues.has('theater-2')
+      return {
+        ...s,
+        gameDay: 2,
+        revealedDay2CallText: false,
+        showHint: true,
+        currentHint: theaterDone
+          ? 'Смартфон — срочный звонок директора ГТГ.'
+          : 'Начался второй день. Сначала досмотрите Большой театр — потом звонок в кабинете.',
+      }
+    })
   }
 
   const revealDay2CallText = () => {
@@ -1005,15 +1059,11 @@ export function useGame() {
   }
 
   const selectScenarioAndEnterHall = (id: string) => {
-    const item = SCENARIO_LIST.find((s) => s.id === id)
-    if (!item?.available || !getScenario(id)) return
-    setState({ ...createInitialState(id), phase: 'hall' })
-    setActivePanel('none')
-    setRulesUnderstood(null)
+    selectScenario(id)
   }
 
   const resetGame = () => {
-    setState({ ...createInitialState(state.scenarioId), phase: 'hall' })
+    setState({ ...createInitialState(state.scenarioId), phase: 'cover' })
     setActivePanel('none')
     setRulesUnderstood(null)
   }
@@ -1048,6 +1098,7 @@ export function useGame() {
   const pendingDirectorCall = hasPendingDirectorCall(state)
   const pendingDay2Call = hasPendingDay2Call(state)
   const pendingAirportCall = hasPendingAirportCall(state)
+  const pendingPhoneMatch = hasPendingPhoneMatch(state)
   const directorVoiceClue = scenario.hubClues?.find((c) => c.id === 'clue-voice-director')
 
   return {
@@ -1072,7 +1123,9 @@ export function useGame() {
     pendingDirectorCall,
     pendingDay2Call,
     pendingAirportCall,
+    pendingPhoneMatch,
     directorVoiceClue,
+    answerPhoneMatch,
     formatTime,
     startGame,
     enterHall,

@@ -24,7 +24,8 @@ export const TRETYAKOV_HALLS: TretyakovHall[] = [
     sceneId: 'museum-lobby',
     shortLabel: 'Вестибюль',
     title: 'Вестибюль',
-    culturalNote: 'Главный вход. Отсюда можно пройти в залы и кабинет директора.',
+    culturalNote:
+      'Главный вход в галерею. Отсюда — в кабинет директора и в залы 20, 30 и 38.',
     dialogueIndex: 4,
   },
   {
@@ -65,7 +66,11 @@ export const TRETYAKOV_HALLS: TretyakovHall[] = [
   },
 ]
 
+/** Вход и хаб галереи — всегда вестибюль */
 export const DEFAULT_MUSEUM_HALL: MuseumHallId = 'lobby'
+
+/** Первый заход в галерею — тоже вестибюль */
+export const ENTRY_MUSEUM_HALL: MuseumHallId = 'lobby'
 
 const HALL_BY_ID = Object.fromEntries(TRETYAKOV_HALLS.map((h) => [h.id, h])) as Record<
   MuseumHallId,
@@ -98,10 +103,10 @@ export function museumSceneForHall(hallId: MuseumHallId | null | undefined): Sce
   return getTretyakovHall(hallId).sceneId
 }
 
-/** Порядок обхода: директор → Марина (30) → Пётр (20) → Дмитрий (38) → вестибюль */
+/** Порядок подсказок: кабинет → залы (вестибюль — хаб, не прыгаем туда за разговором специалистов) */
 const TALK_PRIORITY: MuseumHallId[] = ['office', 'hall-30', 'hall-20', 'hall-38', 'lobby']
 
-/** Первый салон, где сейчас доступен разговор (для входа в галерею) */
+/** Первый салон, где сейчас доступен разговор */
 export function firstTalkableMuseumHall(availableDialogueIndexes: number[]): MuseumHallId {
   for (const id of TALK_PRIORITY) {
     const hall = HALL_BY_ID[id]
@@ -110,4 +115,9 @@ export function firstTalkableMuseumHall(availableDialogueIndexes: number[]): Mus
     }
   }
   return DEFAULT_MUSEUM_HALL
+}
+
+/** Куда поставить игрока при входе в ГТГ — всегда вестибюль */
+export function museumHallOnEnter(_completedDialogues: Set<string>): MuseumHallId {
+  return ENTRY_MUSEUM_HALL
 }

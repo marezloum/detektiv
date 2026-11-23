@@ -52,7 +52,7 @@ export function applyStolenPaintingProgress(
   }
 }
 
-/** Звонок директора ждёт в кабинете: специалисты опрошены, голосовое ещё не принято */
+/** Звонок директора на смартфон: специалисты опрошены, запись ещё не принята */
 export function hasPendingDirectorCall(state: GameState): boolean {
   return (
     allSpecialistsInterviewed(state.completedDialogues) &&
@@ -62,9 +62,15 @@ export function hasPendingDirectorCall(state: GameState): boolean {
   )
 }
 
-/** Утро дня 2: срочный звонок директора на городской (не SMS) */
+/**
+ * Срочный звонок директора ГТГ в кабинете:
+ * после Большого театра детектив возвращается в кабинет — тогда звонит смартфон.
+ */
 export function hasPendingDay2Call(state: GameState): boolean {
-  return state.gameDay >= 2 && !state.completedDialogues.has('day2-call-0')
+  return (
+    state.completedDialogues.has('theater-2') &&
+    !state.completedDialogues.has('day2-call-0')
+  )
 }
 
 /** Исходящий звонок в полицию аэропорта после чехла в номере */
@@ -103,7 +109,13 @@ export function getAvailableDialogues(
       if (!state.completedDialogues.has('museum-2')) available.push(2)
       if (!state.completedDialogues.has('museum-3')) available.push(3)
     }
-    if (state.gameDay >= 2 && !state.completedDialogues.has('museum-4')) available.push(4)
+    // День 2 в галерее — только после срочного звонка директора в кабинете
+    if (
+      state.completedDialogues.has('day2-call-0') &&
+      !state.completedDialogues.has('museum-4')
+    ) {
+      available.push(4)
+    }
   }
 
   if (locationId === 'theater') {
@@ -184,7 +196,7 @@ export function getDialogueLabel(
   }
 
   if (locationId === 'forensic') {
-    return 'Осмотреть тело и поговорить с экспертом'
+    return 'Поговорить с экспертом'
   }
 
   if (locationId === 'theater') {
@@ -212,8 +224,24 @@ export function canAdvanceDay(state: GameState): boolean {
   return (
     state.gameDay === 1 &&
     SPECIALIST_DIALOGUES.every((key) => state.completedDialogues.has(key)) &&
+    state.phoneMatchSolved &&
     (state.backpack.some((c) => c.id === 'clue-voice-director') ||
       specialistsTableHasAllPhones(state.notebook))
+  )
+}
+
+/**
+ * Загадка после записи номеров:
+ * звонок директора принят + все три телефона в блокноте → сверить с журналом погибшего.
+ */
+export function hasPendingPhoneMatch(state: GameState): boolean {
+  const heardDirector =
+    state.backpack.some((c) => c.id === 'clue-voice-director') ||
+    state.completedDialogues.has('director-call-0')
+  return (
+    !state.phoneMatchSolved &&
+    heardDirector &&
+    specialistsTableHasAllPhones(state.notebook)
   )
 }
 

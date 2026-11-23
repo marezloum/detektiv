@@ -1,6 +1,11 @@
 import { useGameContext } from '../context/GameContext'
-import { OverlayPanelHeader } from './ScreenTopBar'
-import { GTG_SPECIALISTS_COLUMNS } from '../utils/notebook'
+import { asset } from '../utils/asset'
+import {
+  GTG_SPECIALISTS_COLUMNS,
+  GTG_SPECIALISTS_TABLE_ID,
+  specialistsTableHasAllPhones,
+} from '../utils/notebook'
+import { DialogueSpeechControls } from './DialogueSpeechControls'
 
 function NotebookTableEditor({
   entryId,
@@ -53,7 +58,7 @@ function NotebookTableEditor({
       </table>
       <button
         type="button"
-        className="btn btn-secondary btn-sm notebook-add-row-btn"
+        className="notebook-add-row-btn"
         onClick={() => addNotebookTableRow(entryId)}
       >
         + Добавить строку
@@ -63,57 +68,149 @@ function NotebookTableEditor({
 }
 
 export function NotebookPanel() {
-  const { state, removeNotebookEntry, createSpecialistsTable, goBack } = useGameContext()
+  const {
+    state,
+    scenario,
+    removeNotebookEntry,
+    createSpecialistsTable,
+    goBack,
+    openPanel,
+  } = useGameContext()
 
-  const hasSpecialistsTable = state.notebook.some((n) => n.id === 'note-gtg-specialists')
+  const hasSpecialistsTable = state.notebook.some((n) => n.id === GTG_SPECIALISTS_TABLE_ID)
+  const isEmpty = state.notebook.length === 0 && !hasSpecialistsTable
+  const directorVoice = scenario.hubClues?.find((c) => c.id === 'clue-voice-director')?.detail?.voice
+  const heardDirector =
+    state.backpack.some((c) => c.id === 'clue-voice-director') ||
+    state.completedDialogues.has('director-call-0')
+  const phonesComplete = specialistsTableHasAllPhones(state.notebook)
+  const showDirectorVoice =
+    Boolean(directorVoice?.audioSrc) && heardDirector && hasSpecialistsTable && !phonesComplete
 
   return (
     <div className="overlay-panel notebook-panel">
-      <OverlayPanelHeader title="Блокнот — заметки" onBack={goBack} />
-      <div className="notebook-list">
-        {!hasSpecialistsTable && (
-          <div className="notebook-create-table">
-            <p>Нужна таблица специалистов ГТГ?</p>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={createSpecialistsTable}
-            >
-              + Создать таблицу ({GTG_SPECIALISTS_COLUMNS.join(' / ')})
-            </button>
-          </div>
-        )}
+      <div className="backpack-folder" role="dialog" aria-labelledby="notebook-title">
+        <div className="backpack-folder-tabs">
+          <button
+            type="button"
+            className="backpack-folder-tab backpack-folder-tab--back"
+            onClick={goBack}
+            aria-label="Назад"
+          >
+            ← Назад
+          </button>
+          <h2 id="notebook-title" className="backpack-folder-tab backpack-folder-tab--title">
+            Блокнот — заметки
+          </h2>
+        </div>
 
-        {state.notebook.length === 0 && hasSpecialistsTable === false ? (
-          <p className="empty-msg">
-            Во время расследования добавляйте важные записи и таблицы из разговоров.
-          </p>
-        ) : (
-          state.notebook.map((entry) => (
-            <article key={entry.id} className="note-card">
-              <div className="inventory-card-header">
-                <h4>{entry.title}</h4>
-                <button
-                  type="button"
-                  className="btn btn-collect btn-collect-remove inventory-remove-btn"
-                  onClick={() => removeNotebookEntry(entry.id)}
-                  aria-label={`Удалить: ${entry.title}`}
-                  title="Удалить"
-                >
-                  −
-                </button>
+        <div className="backpack-folder-frame">
+          {!hasSpecialistsTable && (
+            <div className="notebook-create-table">
+              <p>Нужна таблица специалистов ГТГ?</p>
+              <button type="button" className="notebook-create-btn" onClick={createSpecialistsTable}>
+                + Создать таблицу ({GTG_SPECIALISTS_COLUMNS.join(' / ')})
+              </button>
+            </div>
+          )}
+
+          {isEmpty ? (
+            <p className="empty-msg">
+              Во время расследования добавляйте важные записи и таблицы из разговоров.
+            </p>
+          ) : (
+            <div className="notebook-stage">
+              <p className="backpack-folder-kicker">
+                Заметки по делу · {state.notebook.length}
+              </p>
+              <div className="notebook-list" aria-label="Заметки в блокноте">
+                {[...state.notebook]
+                  .sort((a, b) => {
+                    if (a.id === GTG_SPECIALISTS_TABLE_ID) return -1
+                    if (b.id === GTG_SPECIALISTS_TABLE_ID) return 1
+                    return 0
+                  })
+                  .map((entry, index) => {
+                  const isSpecialists = entry.id === GTG_SPECIALISTS_TABLE_ID
+                  return (
+                    <article
+                      key={entry.id}
+                      className={[
+                        'note-card',
+                        index % 3 === 0
+                          ? 'is-tilt-a'
+                          : index % 3 === 1
+                            ? 'is-tilt-b'
+                            : 'is-tilt-c',
+                      ].join(' ')}
+                    >
+                      <img
+                        src={asset('/images/ui/paperclip.svg')}
+                        alt=""
+                        className="locker-paperclip note-card-clip"
+                        aria-hidden
+                      />
+                      <div className="note-card-header">
+                        <div className="note-card-who">
+                          <p className="note-card-eyebrow">Запись</p>
+                          <h4 className="note-card-title">{entry.title}</h4>
+                        </div>
+                        <button
+                          type="button"
+                          className="note-card-remove"
+                          onClick={() => removeNotebookEntry(entry.id)}
+                          aria-label={`Удалить: ${entry.title}`}
+                          title="Удалить"
+                        >
+                          Убрать
+                        </button>
+                      </div>
+                      {entry.content && <p className="note-content">{entry.content}</p>}
+
+                      {isSpecialists && showDirectorVoice && directorVoice && (
+                        <div className="notebook-director-voice">
+                          <p className="notebook-director-voice-label">
+                            Голосовое директора — слушайте и вписывайте номера в таблицу
+                          </p>
+                          <DialogueSpeechControls
+                            text={directorVoice.transcript ?? ''}
+                            lineKey="notebook-director-voice"
+                            audioSrc={directorVoice.audioSrc}
+                            autoPlay
+                          />
+                        </div>
+                      )}
+
+                      {entry.table && (
+                        <NotebookTableEditor
+                          entryId={entry.id}
+                          columns={entry.table.columns}
+                          rows={entry.table.rows}
+                        />
+                      )}
+
+                      {isSpecialists && phonesComplete && !state.phoneMatchSolved && (
+                        <div className="notebook-next-step">
+                          <p>
+                            Номера записаны. Откройте рюкзак → «Телефон погибшего», сверьте журнал
+                            звонков — затем ответьте на вопрос на столе.
+                          </p>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => openPanel('backpack')}
+                          >
+                            Открыть рюкзак — телефон погибшего
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  )
+                })}
               </div>
-              {entry.content && <p className="note-content">{entry.content}</p>}
-              {entry.table && (
-                <NotebookTableEditor
-                  entryId={entry.id}
-                  columns={entry.table.columns}
-                  rows={entry.table.rows}
-                />
-              )}
-            </article>
-          ))
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

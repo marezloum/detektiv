@@ -35,6 +35,7 @@ export function ToolBar() {
       <button
         type="button"
         className={`tool-btn ${activePanel === 'backpack' ? 'active' : ''} ${pulsed('backpack')}`}
+        data-tool-target="backpack"
         onClick={() => openPanel('backpack')}
         title="Рюкзак — улики"
       >

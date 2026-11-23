@@ -322,6 +322,8 @@ export interface GameState {
   currentHint: string | null
   /** Имена специалистов, чьи номера открыты письменно (+10 сек каждый) */
   revealedDirectorPhones: Set<string>
+  /** Загадка: номер специалиста совпал с журналом телефона погибшего */
+  phoneMatchSolved: boolean
   /** Текст срочного звонка дня 2 открыт письменно (+10 сек) */
   revealedDay2CallText: boolean
   /** Реплики, на которых уже показали нужную улику */

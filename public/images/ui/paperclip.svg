@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 120" fill="none">
+  <defs>
+    <linearGradient id="clipMetal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f2f2f4"/>
+      <stop offset="35%" stop-color="#c8c8ce"/>
+      <stop offset="55%" stop-color="#9a9aa3"/>
+      <stop offset="100%" stop-color="#d8d8de"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M22 18
+       C22 10 30 6 38 6
+       C46 6 52 12 52 20
+       L52 78
+       C52 92 42 102 30 102
+       C18 102 10 92 10 80
+       L10 34
+       C10 26 16 20 24 20
+       C32 20 36 26 36 34
+       L36 72"
+    stroke="url(#clipMetal)"
+    stroke-width="5.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M22 18
+       C22 10 30 6 38 6
+       C46 6 52 12 52 20
+       L52 78
+       C52 92 42 102 30 102
+       C18 102 10 92 10 80
+       L10 34
+       C10 26 16 20 24 20
+       C32 20 36 26 36 34
+       L36 72"
+    stroke="rgba(255,255,255,0.35)"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    transform="translate(-1.2 -1)"
+  />
+</svg>

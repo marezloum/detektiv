@@ -6,6 +6,7 @@ import { MoscowMapGeography } from './MoscowMapGeography'
 import { MapMarkersOverlay, useMarkerScreenPositions } from './MapMarkersOverlay'
 import { MapLegend } from './MapLegend'
 import { useMapPan } from '../hooks/useMapPan'
+import { HintScrap } from './HintScrap'
 
 export function MapPanel() {
   const {
@@ -146,12 +147,7 @@ export function MapPanel() {
       </p>
 
       {state.showHint && state.currentHint && (
-        <div className="hint-toast map-locked-toast">
-          <p>{state.currentHint}</p>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={dismissHint}>
-            Понятно
-          </button>
-        </div>
+        <HintScrap text={state.currentHint} onDismiss={dismissHint} />
       )}
     </div>
   )
